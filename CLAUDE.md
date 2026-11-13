@@ -37,11 +37,11 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   Probado: los datos sobreviven a `docker compose down` y a vaciar Redis.
 - El análisis sigue SIMULADO (tasks._run_analysis espera 5 s).
 - /health revisa Postgres y Redis (200 / 503).
-- Etapa 2 en curso: 14 tests con pytest pasan (~7 s) contra Postgres y
-  Redis reales (base "deadcode_test" y Redis db 1). Cobertura 85%
-  (main.py 96%). Incluye caminos de error (503) y job de punta a punta.
-- Próximo: CI con GitHub Actions que corra los tests en cada push. En
-  CI (Linux) probar también el worker real de RQ (hoy 0% cubierto).
+- Etapa 2 en curso: 15 tests con pytest contra Postgres y Redis reales
+  (base "deadcode_test" y Redis db 1). En Windows: 14 pasan + 1 saltado
+  (worker real, solo Linux). En Linux: 15 pasan.
+- CI listo en .github/workflows/ci.yml (tests + build de la imagen +
+  validación de Compose). Pendiente: primer push y revisar resultado.
 - Antes del análisis real: restringir repo_url a https://github.com/...
   para evitar SSRF (que usen el servidor para llegar a URLs internas).
 - Al final de la etapa 2: escribir el README (pedido por el usuario).
@@ -88,6 +88,15 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   que la base termine en "_test" y que Redis no sea la db 0.
 - Fallas de servicios se simulan con monkeypatch (no se apagan de
   verdad) para no afectar a otros tests.
+- Test del worker real: RQ en modo burst (procesa y termina). Cerrar el
+  TestClient ANTES de work(): hace fork y con hilos vivos puede
+  bloquearse (Python avisa con DeprecationWarning).
+- CI: GitHub Actions en ubuntu-latest; Postgres y Redis como service
+  containers (mismas imágenes que Compose); credenciales solo de
+  prueba en el workflow; permisos mínimos (contents: read); acciones
+  con versión fija (checkout@v7, setup-uv@v7, uv 0.13.8).
+- Probar en Linux sin CI: contenedor python:3.12-slim temporal en la
+  red de Compose (POSTGRES_HOST=postgres, REDIS_HOST=redis).
 - En tests locales usar 127.0.0.1, NO "localhost": en Windows,
   localhost prueba primero IPv6 (::1) y pierde ~2 s por conexión.
 
@@ -98,7 +107,9 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
 - src/deadcode_service/tasks.py: tareas que ejecuta el worker
 - src/deadcode_service/worker.py: worker RQ que escucha la cola
 - tests/conftest.py: preparación común (base de test, limpieza, cliente)
-- tests/test_*.py: tests de health, endpoints de análisis y tarea
+- tests/test_*.py: tests de health, endpoints de análisis, tarea y
+  worker real (test_worker.py, solo Linux)
+- .github/workflows/ci.yml: CI (tests + build de imagen + Compose)
 - src/deadcode_service/__init__.py: vacío (marca el paquete)
 - pyproject.toml y uv.lock: dependencias (gestionadas con uv)
 - Dockerfile: receta de la imagen de la API
