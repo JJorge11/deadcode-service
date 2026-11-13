@@ -1,0 +1,8 @@
+# Finales de línea: LF en todo el proyecto (estándar de Linux).
+# Los contenedores son Linux: un script .sh con CRLF (Windows) falla.
+# Esta regla le gana a la configuración de git de cada computador.
+* text=auto eol=lf
+
+# Excepción: scripts que solo corren en Windows necesitan CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
