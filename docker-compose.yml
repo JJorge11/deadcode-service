@@ -1,0 +1,57 @@
+# Levanta todo el entorno de desarrollo con: docker compose up -d --build
+# Las variables ${...} se leen del archivo .env (copiar de .env.example).
+# ":?mensaje" hace que Compose falle con ese mensaje si la variable falta.
+
+services:
+  # Nuestra API (se construye con el Dockerfile de esta carpeta)
+  api:
+    build: .
+    image: deadcode-service:dev
+    ports:
+      - "8000:8000"   # puerto_en_tu_PC:puerto_en_el_contenedor
+    environment:
+      # Dentro de Compose, cada servicio se encuentra por su nombre
+      # ("postgres", "redis"), no por "localhost".
+      DATABASE_URL: postgresql://${POSTGRES_USER:?falta en .env}:${POSTGRES_PASSWORD:?falta en .env}@postgres:5432/${POSTGRES_DB:?falta en .env}
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      # La API arranca solo cuando Postgres y Redis pasan su healthcheck.
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Base de datos: guardará los resultados de los análisis
+  postgres:
+    image: postgres:17-alpine   # versión fija: evita sorpresas al actualizar
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?falta en .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?falta en .env}
+      POSTGRES_DB: ${POSTGRES_DB:?falta en .env}
+    volumes:
+      # Los datos viven en un volumen: sobreviven aunque borres el contenedor.
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      # 127.0.0.1 = solo accesible desde tu PC, no desde tu red WiFi.
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      # pg_isready responde OK cuando Postgres acepta conexiones.
+      # $$ = "$" literal: la variable la resuelve el contenedor, no Compose.
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Cola de tareas: la API anota trabajos aquí y los workers los toman
+  redis:
+    image: redis:8-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]   # responde "PONG" si está vivo
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:

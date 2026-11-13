@@ -30,8 +30,15 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
 <!-- Actualizar al final de cada sesión. Es el "punto de guardado":
      refleja lo que es verdad AHORA. El historial vive en git. -->
 - Etapa 1 en curso: API FastAPI mínima con /health funcionando.
-- Restos de la plantilla de `uv init` eliminados.
-- Próximo: Dockerfile y docker-compose (API, Postgres, Redis).
+- Docker Desktop (WSL2) instalado y funcionando.
+- Dockerfile de la API listo: la imagen construye y /health responde
+  desde el contenedor.
+- docker-compose.yml listo: API + Postgres 17 + Redis 8 levantan juntos,
+  con healthchecks.
+- API conectada: /health hace SELECT 1 a Postgres y PING a Redis.
+  Responde 200 si ambos están ok y 503 si alguno falla (probado
+  apagando Redis).
+- Próximo: worker que tome tareas de Redis.
 
 ## Decisiones
 <!-- Una línea por decisión: qué se eligió y por qué. -->
@@ -40,11 +47,29 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
 - Layout `src/`: obliga a instalar el paquete para importarlo y evita
   errores que solo aparecen al empaquetar o dentro de Docker.
 - FastAPI para la API: tipado, validación automática y docs en /docs.
+- Imagen base python:3.12-slim + uv copiado de su imagen oficial (misma
+  versión que en local). Dependencias antes que el código para
+  aprovechar la caché de Docker. El contenedor corre como usuario
+  sin privilegios (`app`), no como root.
+- Credenciales en .env (ignorado por git); .env.example documenta las
+  variables. Versiones de imágenes fijas (postgres:17, redis:8).
+- Postgres y Redis publicados solo en 127.0.0.1 (no visibles en la red).
+- Postgres en contenedor solo para desarrollo; en la nube se usará un
+  servicio administrado (RDS).
+- Clientes: psycopg 3 (Postgres) y redis-py. Conexión nueva por cada
+  /health por simplicidad; más adelante, pool de conexiones.
+- /health: timeout de 2 s por servicio; al cliente solo se le muestra
+  el tipo de error, el detalle va a los logs.
 
 ## Estructura
-- src/deadcode_service/main.py: aplicación FastAPI
+- src/deadcode_service/main.py: aplicación FastAPI (/health revisa
+  Postgres y Redis)
 - src/deadcode_service/__init__.py: vacío (marca el paquete)
 - pyproject.toml y uv.lock: dependencias (gestionadas con uv)
+- Dockerfile: receta de la imagen de la API
+- .dockerignore: lo que no entra a la imagen (.venv, .git, .env)
+- docker-compose.yml: API + Postgres + Redis para desarrollo
+- .env.example: plantilla de variables (copiar a .env)
 
 ## Comandos útiles
 - Instalar dependencias (tras clonar o cambiar uv.lock): uv sync
@@ -52,10 +77,19 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
 - Probar: abrir http://127.0.0.1:8000/health o http://127.0.0.1:8000/docs
 - Agregar dependencia: uv add <paquete>
 - Agregar dependencia de desarrollo: uv add --dev <paquete>
+- Construir imagen: docker build -t deadcode-service:dev .
+- Ejecutar contenedor: docker run --rm -p 8000:8000 deadcode-service:dev
+- Primera vez: copy .env.example .env (y cambiar la contraseña)
+- Levantar todo: docker compose up -d --build
+- Ver estado / logs: docker compose ps / docker compose logs -f api
+- Apagar (conserva datos): docker compose down
+- Apagar y BORRAR datos de Postgres: docker compose down -v
 
 ## Reglas de trabajo
-- Explicar el "por qué" de cada cambio antes de hacerlo. Soy junior,
-  prefiero explicaciones breves y claras.
+- Soy junior: TODAS las explicaciones deben ser a nivel junior, breves
+  y claras. Definir cada término técnico la primera vez que aparece
+  (en una línea) y preferir ejemplos simples a teoría.
+- Explicar el "por qué" de cada cambio antes de hacerlo.
 - Ir paso a paso, una etapa a la vez.
 - Nunca subir credenciales ni archivos .env.
 - No incluir código de empresas privadas.

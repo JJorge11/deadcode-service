@@ -1,0 +1,15 @@
+# Entorno virtual local (es de Windows, no sirve en Linux)
+.venv/
+
+# Git y archivos de Python generados
+.git/
+__pycache__/
+*.py[cod]
+
+# Secretos: nunca dentro de una imagen
+.env
+.env.*
+
+# Cosas del editor y de Claude que la imagen no necesita
+.vscode/
+.claude/
