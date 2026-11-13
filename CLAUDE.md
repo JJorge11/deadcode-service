@@ -37,7 +37,14 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   Probado: los datos sobreviven a `docker compose down` y a vaciar Redis.
 - El análisis sigue SIMULADO (tasks._run_analysis espera 5 s).
 - /health revisa Postgres y Redis (200 / 503).
-- Próximo: etapa 2 (tests con pytest y CI con GitHub Actions).
+- Etapa 2 en curso: 14 tests con pytest pasan (~7 s) contra Postgres y
+  Redis reales (base "deadcode_test" y Redis db 1). Cobertura 85%
+  (main.py 96%). Incluye caminos de error (503) y job de punta a punta.
+- Próximo: CI con GitHub Actions que corra los tests en cada push. En
+  CI (Linux) probar también el worker real de RQ (hoy 0% cubierto).
+- Antes del análisis real: restringir repo_url a https://github.com/...
+  para evitar SSRF (que usen el servidor para llegar a URLs internas).
+- Al final de la etapa 2: escribir el README (pedido por el usuario).
 - Pendiente más adelante: análisis real con Vulture dentro de un
   contenedor aislado; migraciones con Alembic cuando cambie la tabla.
 
@@ -72,6 +79,17 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
 - SQL directo con psycopg, sin ORM, con parámetros (%s) contra
   inyección SQL. Tabla creada al arrancar la API con CREATE TABLE IF
   NOT EXISTS (simple); pasar a Alembic cuando haya cambios de esquema.
+- Tests de integración (Postgres y Redis reales, no mocks), aislados de
+  los datos de desarrollo: base "deadcode_test" y Redis db 1. Cada test
+  empieza con tabla y Redis vacíos. La tarea del worker se prueba
+  llamándola directo (RQ no corre en Windows) con monkeypatch para
+  saltarse la espera simulada.
+- Seguro en conftest: antes de borrar, verifica con current_database()
+  que la base termine en "_test" y que Redis no sea la db 0.
+- Fallas de servicios se simulan con monkeypatch (no se apagan de
+  verdad) para no afectar a otros tests.
+- En tests locales usar 127.0.0.1, NO "localhost": en Windows,
+  localhost prueba primero IPv6 (::1) y pierde ~2 s por conexión.
 
 ## Estructura
 - src/deadcode_service/main.py: API FastAPI (/health, POST /analyses,
@@ -79,6 +97,8 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
 - src/deadcode_service/db.py: tabla "analyses" y consultas SQL
 - src/deadcode_service/tasks.py: tareas que ejecuta el worker
 - src/deadcode_service/worker.py: worker RQ que escucha la cola
+- tests/conftest.py: preparación común (base de test, limpieza, cliente)
+- tests/test_*.py: tests de health, endpoints de análisis y tarea
 - src/deadcode_service/__init__.py: vacío (marca el paquete)
 - pyproject.toml y uv.lock: dependencias (gestionadas con uv)
 - Dockerfile: receta de la imagen de la API
@@ -98,6 +118,7 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
 - Levantar todo: docker compose up -d --build
 - Ver estado / logs: docker compose ps / docker compose logs -f api
   (o -f worker)
+- Correr tests (requiere docker compose up -d): uv run pytest
 - Probar un análisis: abrir http://127.0.0.1:8000/docs, POST /analyses
 - Ver la tabla en Postgres:
   docker compose exec postgres psql -U deadcode -d deadcode -c "SELECT id, repo_url, status FROM analyses"
