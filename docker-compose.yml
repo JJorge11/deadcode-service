@@ -21,6 +21,18 @@ services:
       redis:
         condition: service_healthy
 
+  # Worker: toma tareas de la cola de Redis y las ejecuta.
+  # Misma imagen que la API (mismo código); solo cambia el comando.
+  worker:
+    build: .
+    image: deadcode-service:dev
+    command: ["python", "-m", "deadcode_service.worker"]
+    environment:
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+
   # Base de datos: guardará los resultados de los análisis
   postgres:
     image: postgres:17-alpine   # versión fija: evita sorpresas al actualizar

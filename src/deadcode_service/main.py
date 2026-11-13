@@ -3,8 +3,14 @@ import os
 
 import psycopg
 import redis
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, HttpUrl
+from rq import Queue
+from rq.exceptions import NoSuchJobError
+from rq.job import Job
+
+from deadcode_service.tasks import QUEUE_NAME, analyze_repo
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -63,3 +69,52 @@ def health():
         status_code=200 if all_ok else 503,
         content={"status": "ok" if all_ok else "error", **checks},
     )
+
+
+# ---------------------------------------------------------------------
+# Análisis: la API solo encola; el worker ejecuta.
+# ---------------------------------------------------------------------
+
+
+class AnalysisRequest(BaseModel):
+    """Cuerpo del POST. HttpUrl valida que sea una URL real."""
+
+    repo_url: HttpUrl
+
+
+def get_redis() -> redis.Redis:
+    if not REDIS_URL:
+        raise HTTPException(status_code=503, detail="REDIS_URL no definida")
+    return redis.Redis.from_url(REDIS_URL)
+
+
+@app.post("/analyses", status_code=202)
+def create_analysis(request: AnalysisRequest):
+    """Encola un análisis y responde al instante con su job_id.
+
+    202 = "Aceptado": recibido, pero se procesará después.
+    """
+    try:
+        queue = Queue(QUEUE_NAME, connection=get_redis())
+        job = queue.enqueue(analyze_repo, str(request.repo_url))
+    except redis.RedisError as exc:
+        logger.warning("No se pudo encolar: %s", exc)
+        raise HTTPException(status_code=503, detail="Cola no disponible")
+    return {"job_id": job.id, "status": job.get_status()}
+
+
+@app.get("/analyses/{job_id}")
+def get_analysis(job_id: str):
+    """Consulta el estado de un análisis y, si terminó, su resultado."""
+    try:
+        job = Job.fetch(job_id, connection=get_redis())
+    except NoSuchJobError:
+        raise HTTPException(status_code=404, detail="Análisis no encontrado")
+    except redis.RedisError as exc:
+        logger.warning("No se pudo consultar: %s", exc)
+        raise HTTPException(status_code=503, detail="Cola no disponible")
+    return {
+        "job_id": job.id,
+        "status": job.get_status(),  # queued / started / finished / failed
+        "result": job.return_value(),  # None hasta que termine
+    }

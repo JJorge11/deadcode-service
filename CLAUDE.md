@@ -38,7 +38,13 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
 - API conectada: /health hace SELECT 1 a Postgres y PING a Redis.
   Responde 200 si ambos están ok y 503 si alguno falla (probado
   apagando Redis).
-- Próximo: worker que tome tareas de Redis.
+- Worker con RQ funcionando: POST /analyses encola (202 + job_id),
+  el worker ejecuta y GET /analyses/{job_id} muestra estado y
+  resultado. El análisis es SIMULADO (espera 5 s, no clona nada).
+  Los resultados viven en Redis (RQ los borra a los ~500 s).
+- .gitattributes fuerza LF; .vscode/ ignorado.
+- Próximo: guardar los análisis en Postgres (tabla + el worker escribe
+  el resultado) para que no se pierdan.
 
 ## Decisiones
 <!-- Una línea por decisión: qué se eligió y por qué. -->
@@ -60,15 +66,22 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   /health por simplicidad; más adelante, pool de conexiones.
 - /health: timeout de 2 s por servicio; al cliente solo se le muestra
   el tipo de error, el detalle va a los logs.
+- Cola con RQ (no Celery): más simple y suficiente para aprender.
+  Cola "analyses". El worker usa la misma imagen que la API con otro
+  comando. RQ usa fork: el worker solo corre en Linux (contenedor).
+- Finales de línea LF en todo el repo (.gitattributes), porque los
+  contenedores son Linux.
 
 ## Estructura
-- src/deadcode_service/main.py: aplicación FastAPI (/health revisa
-  Postgres y Redis)
+- src/deadcode_service/main.py: API FastAPI (/health, POST /analyses,
+  GET /analyses/{job_id})
+- src/deadcode_service/tasks.py: tareas que ejecuta el worker
+- src/deadcode_service/worker.py: worker RQ que escucha la cola
 - src/deadcode_service/__init__.py: vacío (marca el paquete)
 - pyproject.toml y uv.lock: dependencias (gestionadas con uv)
 - Dockerfile: receta de la imagen de la API
 - .dockerignore: lo que no entra a la imagen (.venv, .git, .env)
-- docker-compose.yml: API + Postgres + Redis para desarrollo
+- docker-compose.yml: API + worker + Postgres + Redis para desarrollo
 - .env.example: plantilla de variables (copiar a .env)
 
 ## Comandos útiles
@@ -82,6 +95,8 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
 - Primera vez: copy .env.example .env (y cambiar la contraseña)
 - Levantar todo: docker compose up -d --build
 - Ver estado / logs: docker compose ps / docker compose logs -f api
+  (o -f worker)
+- Probar un análisis: abrir http://127.0.0.1:8000/docs, POST /analyses
 - Apagar (conserva datos): docker compose down
 - Apagar y BORRAR datos de Postgres: docker compose down -v
 
