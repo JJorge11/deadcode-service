@@ -29,22 +29,17 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
 ## Estado actual
 <!-- Actualizar al final de cada sesión. Es el "punto de guardado":
      refleja lo que es verdad AHORA. El historial vive en git. -->
-- Etapa 1 en curso: API FastAPI mínima con /health funcionando.
-- Docker Desktop (WSL2) instalado y funcionando.
-- Dockerfile de la API listo: la imagen construye y /health responde
-  desde el contenedor.
-- docker-compose.yml listo: API + Postgres 17 + Redis 8 levantan juntos,
-  con healthchecks.
-- API conectada: /health hace SELECT 1 a Postgres y PING a Redis.
-  Responde 200 si ambos están ok y 503 si alguno falla (probado
-  apagando Redis).
-- Worker con RQ funcionando: POST /analyses encola (202 + job_id),
-  el worker ejecuta y GET /analyses/{job_id} muestra estado y
-  resultado. El análisis es SIMULADO (espera 5 s, no clona nada).
-  Los resultados viven en Redis (RQ los borra a los ~500 s).
-- .gitattributes fuerza LF; .vscode/ ignorado.
-- Próximo: guardar los análisis en Postgres (tabla + el worker escribe
-  el resultado) para que no se pierdan.
+- Etapa 1 COMPLETA: Docker Compose con API + worker + Postgres 17 +
+  Redis 8, con healthchecks. Docker Desktop (WSL2) instalado.
+- Flujo funcionando: POST /analyses crea la fila en Postgres (queued)
+  y encola; el worker la pasa a running -> finished/failed y guarda el
+  resultado. GET /analyses y GET /analyses/{id} leen de Postgres.
+  Probado: los datos sobreviven a `docker compose down` y a vaciar Redis.
+- El análisis sigue SIMULADO (tasks._run_analysis espera 5 s).
+- /health revisa Postgres y Redis (200 / 503).
+- Próximo: etapa 2 (tests con pytest y CI con GitHub Actions).
+- Pendiente más adelante: análisis real con Vulture dentro de un
+  contenedor aislado; migraciones con Alembic cuando cambie la tabla.
 
 ## Decisiones
 <!-- Una línea por decisión: qué se eligió y por qué. -->
@@ -71,10 +66,17 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   comando. RQ usa fork: el worker solo corre en Linux (contenedor).
 - Finales de línea LF en todo el repo (.gitattributes), porque los
   contenedores son Linux.
+- Postgres = fuente de verdad; Redis = solo la cola. La API crea la
+  fila ANTES de encolar (evita que el worker busque una fila que no
+  existe). El job de RQ usa el mismo id que la fila.
+- SQL directo con psycopg, sin ORM, con parámetros (%s) contra
+  inyección SQL. Tabla creada al arrancar la API con CREATE TABLE IF
+  NOT EXISTS (simple); pasar a Alembic cuando haya cambios de esquema.
 
 ## Estructura
 - src/deadcode_service/main.py: API FastAPI (/health, POST /analyses,
-  GET /analyses/{job_id})
+  GET /analyses, GET /analyses/{id})
+- src/deadcode_service/db.py: tabla "analyses" y consultas SQL
 - src/deadcode_service/tasks.py: tareas que ejecuta el worker
 - src/deadcode_service/worker.py: worker RQ que escucha la cola
 - src/deadcode_service/__init__.py: vacío (marca el paquete)
@@ -97,6 +99,8 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
 - Ver estado / logs: docker compose ps / docker compose logs -f api
   (o -f worker)
 - Probar un análisis: abrir http://127.0.0.1:8000/docs, POST /analyses
+- Ver la tabla en Postgres:
+  docker compose exec postgres psql -U deadcode -d deadcode -c "SELECT id, repo_url, status FROM analyses"
 - Apagar (conserva datos): docker compose down
 - Apagar y BORRAR datos de Postgres: docker compose down -v
 

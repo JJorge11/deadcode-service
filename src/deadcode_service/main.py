@@ -1,5 +1,7 @@
 import logging
 import os
+import uuid
+from contextlib import asynccontextmanager
 
 import psycopg
 import redis
@@ -7,19 +9,15 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, HttpUrl
 from rq import Queue
-from rq.exceptions import NoSuchJobError
-from rq.job import Job
 
+from deadcode_service import db
 from deadcode_service.tasks import QUEUE_NAME, analyze_repo
 
 logger = logging.getLogger("uvicorn.error")
 
-app = FastAPI(title="deadcode-service")
-
-# Direcciones de los servicios. En Docker Compose vienen del
-# docker-compose.yml; si no existen (por ejemplo, al correr la API
-# directamente en Windows), quedan en None.
-DATABASE_URL = os.environ.get("DATABASE_URL")
+# Dirección de Redis. En Docker Compose viene del docker-compose.yml;
+# si no existe (por ejemplo, al correr la API directamente en Windows),
+# queda en None. La de Postgres está en db.DATABASE_URL.
 REDIS_URL = os.environ.get("REDIS_URL")
 
 # Tiempo máximo (segundos) que esperamos a cada servicio antes de
@@ -27,12 +25,27 @@ REDIS_URL = os.environ.get("REDIS_URL")
 TIMEOUT_SECONDS = 2
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Código que corre una vez al arrancar la API (antes del yield)."""
+    db.init_db()  # crea la tabla "analyses" si no existe
+    yield
+
+
+app = FastAPI(title="deadcode-service", lifespan=lifespan)
+
+
+# ---------------------------------------------------------------------
+# Salud: ¿responden Postgres y Redis?
+# ---------------------------------------------------------------------
+
+
 def check_postgres() -> str:
     """Abre una conexión y ejecuta SELECT 1 ("¿estás ahí?")."""
-    if not DATABASE_URL:
+    if not db.DATABASE_URL:
         return "error: DATABASE_URL no definida"
     try:
-        with psycopg.connect(DATABASE_URL, connect_timeout=TIMEOUT_SECONDS) as conn:
+        with psycopg.connect(db.DATABASE_URL, connect_timeout=TIMEOUT_SECONDS) as conn:
             conn.execute("SELECT 1")
         return "ok"
     except psycopg.Error as exc:
@@ -72,7 +85,8 @@ def health():
 
 
 # ---------------------------------------------------------------------
-# Análisis: la API solo encola; el worker ejecuta.
+# Análisis: la API guarda la fila y encola; el worker ejecuta.
+# Postgres es la fuente de verdad; Redis es solo la cola.
 # ---------------------------------------------------------------------
 
 
@@ -90,31 +104,47 @@ def get_redis() -> redis.Redis:
 
 @app.post("/analyses", status_code=202)
 def create_analysis(request: AnalysisRequest):
-    """Encola un análisis y responde al instante con su job_id.
+    """Registra un análisis y lo encola. Responde al instante.
 
     202 = "Aceptado": recibido, pero se procesará después.
     """
+    analysis_id = uuid.uuid4()  # identificador único al azar
+    repo_url = str(request.repo_url)
+
+    # 1) Primero la fila en Postgres: así existe antes de que un
+    #    worker rápido intente actualizarla.
+    try:
+        db.create_analysis(analysis_id, repo_url)
+    except psycopg.Error as exc:
+        logger.warning("No se pudo guardar el análisis: %s", exc)
+        raise HTTPException(status_code=503, detail="Base de datos no disponible")
+
+    # 2) Después el job en Redis, con el mismo id que la fila.
     try:
         queue = Queue(QUEUE_NAME, connection=get_redis())
-        job = queue.enqueue(analyze_repo, str(request.repo_url))
+        queue.enqueue(analyze_repo, str(analysis_id), repo_url, job_id=str(analysis_id))
     except redis.RedisError as exc:
         logger.warning("No se pudo encolar: %s", exc)
+        db.mark_failed(analysis_id, "No se pudo encolar")
         raise HTTPException(status_code=503, detail="Cola no disponible")
-    return {"job_id": job.id, "status": job.get_status()}
+
+    return {"id": analysis_id, "status": "queued"}
 
 
-@app.get("/analyses/{job_id}")
-def get_analysis(job_id: str):
-    """Consulta el estado de un análisis y, si terminó, su resultado."""
-    try:
-        job = Job.fetch(job_id, connection=get_redis())
-    except NoSuchJobError:
+@app.get("/analyses")
+def list_analyses():
+    """Los últimos 20 análisis, del más nuevo al más antiguo."""
+    return db.list_analyses(limit=20)
+
+
+@app.get("/analyses/{analysis_id}")
+def get_analysis(analysis_id: uuid.UUID):
+    """Estado y resultado de un análisis. Lee desde Postgres.
+
+    Al declarar el tipo uuid.UUID, FastAPI rechaza (422) ids con
+    formato inválido antes de llegar a la base de datos.
+    """
+    analysis = db.get_analysis(analysis_id)
+    if analysis is None:
         raise HTTPException(status_code=404, detail="Análisis no encontrado")
-    except redis.RedisError as exc:
-        logger.warning("No se pudo consultar: %s", exc)
-        raise HTTPException(status_code=503, detail="Cola no disponible")
-    return {
-        "job_id": job.id,
-        "status": job.get_status(),  # queued / started / finished / failed
-        "result": job.return_value(),  # None hasta que termine
-    }
+    return analysis

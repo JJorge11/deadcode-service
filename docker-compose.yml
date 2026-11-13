@@ -28,8 +28,12 @@ services:
     image: deadcode-service:dev
     command: ["python", "-m", "deadcode_service.worker"]
     environment:
+      # El worker escribe el estado y resultado de cada análisis en Postgres.
+      DATABASE_URL: postgresql://${POSTGRES_USER:?falta en .env}:${POSTGRES_PASSWORD:?falta en .env}@postgres:5432/${POSTGRES_DB:?falta en .env}
       REDIS_URL: redis://redis:6379/0
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
 
