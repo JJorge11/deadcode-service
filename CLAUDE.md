@@ -40,11 +40,16 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
 - Etapa 2 en curso: 15 tests con pytest contra Postgres y Redis reales
   (base "deadcode_test" y Redis db 1). En Windows: 14 pasan + 1 saltado
   (worker real, solo Linux). En Linux: 15 pasan.
-- CI listo en .github/workflows/ci.yml (tests + build de la imagen +
-  validación de Compose). Pendiente: primer push y revisar resultado.
+- CI funcionando en GitHub Actions (.github/workflows/ci.yml): tests +
+  build de la imagen + validación de Compose. Primer run verde (~1 min).
+- Etapa 3 en curso: job "publish" en el CI sube la imagen a GHCR
+  (ghcr.io/jjorge11/deadcode-service) con etiquetas sha-<commit> y
+  latest. Pendiente: primer push y verificar la imagen publicada.
+- Pendiente: README (se dejó para más adelante).
+- Recomendado antes de Kubernetes (etapa 4): restringir URLs a GitHub
+  (SSRF) y análisis real con Vulture en contenedor aislado.
 - Antes del análisis real: restringir repo_url a https://github.com/...
   para evitar SSRF (que usen el servidor para llegar a URLs internas).
-- Al final de la etapa 2: escribir el README (pedido por el usuario).
 - Pendiente más adelante: análisis real con Vulture dentro de un
   contenedor aislado; migraciones con Alembic cuando cambie la tabla.
 
@@ -95,6 +100,11 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   containers (mismas imágenes que Compose); credenciales solo de
   prueba en el workflow; permisos mínimos (contents: read); acciones
   con versión fija (checkout@v7, setup-uv@v7, uv 0.13.8).
+- GHCR: se publica solo si tests y docker-build pasan, y solo en push
+  a main (no en PRs). Login con GITHUB_TOKEN (temporal, sin secretos
+  guardados); solo el job publish tiene packages: write. Etiquetas:
+  sha-<commit> (inmutable, para desplegar) y latest (cómoda, cambia).
+  Caché de capas con type=gha.
 - Probar en Linux sin CI: contenedor python:3.12-slim temporal en la
   red de Compose (POSTGRES_HOST=postgres, REDIS_HOST=redis).
 - En tests locales usar 127.0.0.1, NO "localhost": en Windows,
@@ -109,7 +119,8 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
 - tests/conftest.py: preparación común (base de test, limpieza, cliente)
 - tests/test_*.py: tests de health, endpoints de análisis, tarea y
   worker real (test_worker.py, solo Linux)
-- .github/workflows/ci.yml: CI (tests + build de imagen + Compose)
+- .github/workflows/ci.yml: CI (tests + build de imagen + Compose) y
+  publicación de la imagen en GHCR
 - src/deadcode_service/__init__.py: vacío (marca el paquete)
 - pyproject.toml y uv.lock: dependencias (gestionadas con uv)
 - Dockerfile: receta de la imagen de la API

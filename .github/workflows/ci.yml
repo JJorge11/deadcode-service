@@ -81,8 +81,18 @@ jobs:
       - name: Descargar el código
         uses: actions/checkout@v7
 
-      - name: Construir la imagen
-        run: docker build -t deadcode-service:ci .
+      # Buildx: el constructor moderno de Docker. Permite guardar la
+      # caché de capas entre ejecuciones de CI (type=gha).
+      - name: Preparar Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Construir la imagen (sin publicar)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Validar docker-compose.yml
         # Compose necesita las variables del .env (que no está en git).
@@ -91,3 +101,58 @@ jobs:
           POSTGRES_PASSWORD: ci-solo-pruebas
           POSTGRES_DB: deadcode
         run: docker compose config --quiet
+
+  # ------------------------------------------------------------------
+  # 3) Publicar la imagen en GHCR (GitHub Container Registry).
+  #    Solo si los dos jobs anteriores pasaron y solo en push a main
+  #    (un pull request no debe generar una imagen "oficial").
+  # ------------------------------------------------------------------
+  publish:
+    needs: [tests, docker-build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # Único job con permiso de escribir paquetes (subir imágenes).
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v7
+
+      - name: Preparar Buildx
+        uses: docker/setup-buildx-action@v4
+
+      # GITHUB_TOKEN: token temporal que GitHub crea para esta ejecución
+      # y que vence al terminar. No hay contraseñas guardadas.
+      - name: Iniciar sesión en GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Calcula el nombre y las etiquetas de la imagen:
+      #   ghcr.io/<usuario>/deadcode-service:sha-<commit>  (inmutable)
+      #   ghcr.io/<usuario>/deadcode-service:latest        (la más nueva)
+      # También agrega etiquetas OCI (metadatos), entre ellas el enlace
+      # al repo, para que GHCR asocie la imagen con este repositorio.
+      - name: Calcular nombre y etiquetas
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=sha,prefix=sha-
+            type=raw,value=latest
+
+      - name: Construir y publicar
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
