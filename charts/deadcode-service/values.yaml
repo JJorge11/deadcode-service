@@ -27,9 +27,13 @@ worker:
 
 # ⚠️ TEMPORAL: "local" = el worker analiza en su propio pod, SIN
 # aislamiento (aceptable solo con Vulture, que no ejecuta código).
-# Pasará a "kubernetes" en el paso 5 (sandbox con Jobs).
+# Pasará a "kubernetes" en el paso 5 (un pod desechable por análisis).
 sandbox:
   mode: local
+  namespace: deadcode-sandboxes   # zona aislada (ver templates/sandbox.yaml)
+  maxPods: 4                      # sandboxes simultáneos como máximo
+  quotaMemory: 2Gi                # memoria total de todos los sandboxes
+  quotaCpu: "4"
 
 postgres:
   image: postgres:17-alpine

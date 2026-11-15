@@ -34,6 +34,8 @@ spec:
         # reinicia los pods para que tomen la nueva configuración.
         checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
     spec:
+      # La API no habla con Kubernetes: no recibe credenciales del clúster.
+      automountServiceAccountToken: false
       securityContext:
         {{- include "deadcode.podSecurity" . | nindent 8 }}
       containers:

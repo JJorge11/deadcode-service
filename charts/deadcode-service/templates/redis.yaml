@@ -28,6 +28,7 @@ spec:
       labels:
         {{- include "deadcode.labels" (dict "root" . "component" "redis") | nindent 8 }}
     spec:
+      automountServiceAccountToken: false   # no habla con Kubernetes
       securityContext:
         # Usuario "redis" de la imagen alpine: uid 999, grupo 1000.
         runAsUser: 999

@@ -33,6 +33,7 @@ spec:
       labels:
         {{- include "deadcode.labels" (dict "root" . "component" "postgres") | nindent 8 }}
     spec:
+      automountServiceAccountToken: false   # no habla con Kubernetes
       securityContext:
         # Usuario "postgres" de la imagen ALPINE: uid 70 (no 999, que es
         # el de la imagen Debian).

@@ -9,3 +9,7 @@ data:
   REDIS_URL: redis://redis:6379/0
   # ⚠️ "local" es TEMPORAL (ver values.yaml, sección sandbox).
   SANDBOX_MODE: {{ .Values.sandbox.mode | quote }}
+  # Modo "kubernetes": el sandbox usa la MISMA imagen que la app (ya
+  # contiene el analizador) y se crea en el namespace aislado.
+  SANDBOX_IMAGE: {{ include "deadcode.image" . | quote }}
+  SANDBOX_NAMESPACE: {{ .Values.sandbox.namespace | quote }}

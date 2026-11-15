@@ -17,6 +17,9 @@ spec:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
     spec:
+      # Identidad con permiso SOLO para manejar pods de sandbox
+      # (ver templates/sandbox.yaml).
+      serviceAccountName: worker
       securityContext:
         {{- include "deadcode.podSecurity" . | nindent 8 }}
       containers:

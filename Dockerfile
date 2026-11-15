@@ -9,6 +9,11 @@ COPY --from=ghcr.io/astral-sh/uv:0.13.8 /uv /usr/local/bin/uv
 # socket (que solo se le da al worker, a través de un proxy), no sirve.
 COPY --from=docker:29.8.1-cli /usr/local/bin/docker /usr/local/bin/docker
 
+# CLI de Kubernetes (imagen oficial): en el clúster, el worker crea un
+# pod de sandbox por análisis. Sus permisos NO vienen del programa, sino
+# de la identidad del pod (ServiceAccount "worker", ver el chart).
+COPY --from=registry.k8s.io/kubectl:v1.36.1 /bin/kubectl /usr/local/bin/kubectl
+
 # Configuración de uv dentro del contenedor:
 # - COMPILE_BYTECODE: precompila los .py para que la API arranque más rápido.
 # - LINK_MODE=copy: copia archivos en vez de enlazarlos (evita avisos en Docker).

@@ -1,0 +1,104 @@
+# Zona aislada para los sandboxes: un namespace propio donde el worker
+# crea UN POD DESECHABLE POR ANÁLISIS (el código ajeno corre ahí).
+# Equivale a las protecciones de "docker run" en Compose, pero las
+# impone Kubernetes (no hace falta el proxy del socket de Docker).
+{{- $ns := .Values.sandbox.namespace }}
+
+# 1) Namespace con Pod Security "restricted": Kubernetes RECHAZA todo
+#    pod inseguro (root, privilegiado, con capacidades extra, etc.).
+#    Aunque alguien tomara el control del worker, no podría crear un
+#    pod privilegiado aquí.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $ns }}
+  labels:
+    {{- include "deadcode.labels" (dict "root" . "component" "sandbox") | nindent 4 }}
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+---
+# 2) Sin red (equivale a --network none): ni entrar ni salir. Los
+#    sandboxes no ven Postgres, Redis, la API de Kubernetes ni internet.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all
+  namespace: {{ $ns }}
+  labels:
+    {{- include "deadcode.labels" (dict "root" . "component" "sandbox") | nindent 4 }}
+spec:
+  podSelector: {}          # {} = TODOS los pods del namespace
+  policyTypes: [Ingress, Egress]
+  # Sin reglas "ingress"/"egress" = no se permite nada.
+---
+# 3) Cuota: tope de sandboxes simultáneos y de recursos totales. Un
+#    worker comprometido no puede llenar el clúster de pods.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: sandbox-quota
+  namespace: {{ $ns }}
+  labels:
+    {{- include "deadcode.labels" (dict "root" . "component" "sandbox") | nindent 4 }}
+spec:
+  hard:
+    pods: {{ .Values.sandbox.maxPods | quote }}
+    limits.memory: {{ .Values.sandbox.quotaMemory | quote }}
+    limits.cpu: {{ .Values.sandbox.quotaCpu | quote }}
+---
+# Identidad de los sandboxes: SIN credenciales del clúster.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sandbox
+  namespace: {{ $ns }}
+  labels:
+    {{- include "deadcode.labels" (dict "root" . "component" "sandbox") | nindent 4 }}
+automountServiceAccountToken: false
+---
+# 4) RBAC: identidad del worker y lo ÚNICO que puede hacer.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: worker
+  labels:
+    {{- include "deadcode.labels" (dict "root" . "component" "worker") | nindent 4 }}
+---
+# Role = lista de permisos, válida SOLO en el namespace de sandboxes.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: sandbox-runner
+  namespace: {{ $ns }}
+  labels:
+    {{- include "deadcode.labels" (dict "root" . "component" "sandbox") | nindent 4 }}
+rules:
+  # Crear el pod, esperar a que arranque y borrarlo al terminar.
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  # Conectarse a su stdin/stdout (pasar el .tar.gz y leer el JSON).
+  - apiGroups: [""]
+    resources: ["pods/attach"]
+    verbs: ["create", "get"]
+  # Leer sus logs (para diagnosticar fallos).
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+# RoleBinding = "el worker (del namespace de la app) recibe ese Role".
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: worker-sandbox-runner
+  namespace: {{ $ns }}
+  labels:
+    {{- include "deadcode.labels" (dict "root" . "component" "sandbox") | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: worker
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: sandbox-runner

@@ -91,10 +91,30 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
      conservados, verificado). Probado upgrade (--set api.replicas=3) y
      rollback. CI: nuevo job "helm" (lint --strict + template) y publish
      ahora depende también de él.
-  5. SANDBOX_MODE "kubernetes": Jobs + RBAC + Pod Security
-     "restricted" + NetworkPolicy. OJO: la red por defecto de kind
-     (kindnet) NO aplica NetworkPolicy; usar Calico u otra que sí.
-     Pasar el .tar.gz al pod (stdin vía attach u otra técnica).
+  5. Sandbox en Kubernetes (un POD desechable por análisis), en partes:
+     5.1 HECHO: templates/sandbox.yaml -> namespace "deadcode-sandboxes"
+         con Pod Security "restricted", NetworkPolicy deny-all,
+         ResourceQuota (4 pods, 2Gi, 4 CPU), ServiceAccount "sandbox"
+         sin token, ServiceAccount "worker" + Role/RoleBinding (solo
+         pods, pods/attach y pods/log en ese namespace). API, Postgres
+         y Redis con automountServiceAccountToken: false.
+         Verificado: kindnet SÍ aplica NetworkPolicy (no hace falta
+         Calico); can-i del worker (sí pods en sandboxes; no secrets,
+         no otros namespaces, no netpol); pod privilegiado rechazado
+         (7 violaciones) y pod sin límites rechazado por la cuota;
+         prueba manual con `kubectl run -i -q --overrides` pasando el
+         .tar.gz por stdin -> JSON correcto en ~4 s.
+     5.2 HECHO: SANDBOX_MODE "kubernetes" en sandbox.py (kubectl run
+         -i -q --overrides, pod borrado SIEMPRE en finally), kubectl
+         v1.36.1 en la imagen (registry.k8s.io/kubectl), ConfigMap con
+         SANDBOX_IMAGE y SANDBOX_NAMESPACE. Modo desconocido = error
+         (antes caía en docker). 123 tests pasan (+1 saltado); mutaciones
+         (no borrar pod, 137 = memoria) detectadas. Experimento: kubectl
+         devuelve 137 TANTO por OOMKilled COMO por DeadlineExceeded ->
+         se consulta el motivo con "kubectl get pod". Sin
+         terminationGracePeriodSeconds: 0 el plazo tardaba 30 s más.
+     5.3 Publicar imagen, helm upgrade con mode=kubernetes y prueba de
+         punta a punta (incluye: sandbox sin red, timeout, memoria).
 - Pendiente después: nivel 2 (coverage.py), dashboard, README.
 - Pendiente: dashboard simple (el usuario tuvo dificultad usando /docs
   para consultar resultados: copiar ids y leer JSON es incómodo).
@@ -237,6 +257,16 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   perdería sus pods). checksum/config reinicia pods si cambia el
   ConfigMap. Nombres fijos (api, worker, postgres, redis): un release
   por namespace.
+- Sandbox en K8s: Pod (no Job) con restartPolicy Never y
+  activeDeadlineSeconds: necesitamos stdin interactivo, y un Job
+  reintenta (no queremos reintentar código ajeno). Diferencias con
+  Docker: no hay --pids-limit por pod (es config del kubelet) ni
+  noexec en /tmp (emptyDir en memoria). Ventaja: Pod Security
+  "restricted" lo impone Kubernetes, así que un worker comprometido NO
+  puede crear pods privilegiados (el límite del proxy de Docker
+  desaparece). `kubectl run -i` necesita -q para que stdout tenga solo
+  el JSON. En PowerShell 5.1 NO pasar binarios por tubería (|, <):
+  los corrompe; usar Git Bash o Python.
 - Usuarios de imágenes alpine: postgres = uid 70:70 (¡no 999, ese es
   Debian!), redis = 999:1000. Verificar siempre con
   `docker run --rm --entrypoint sh <imagen> -c 'grep ^<user>: /etc/passwd'`.
@@ -310,7 +340,8 @@ positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
   (portero del socket) para desarrollo
 - k8s/kind-config.yaml: definición del clúster local (kind)
 - charts/deadcode-service/: chart de Helm (Chart.yaml, values.yaml,
-  templates/ con config, api, worker, postgres, redis y _helpers.tpl)
+  templates/ con config, api, worker, postgres, redis, sandbox y
+  _helpers.tpl)
 - .env.example: plantilla de variables (copiar a .env)
 
 ## Comandos útiles
@@ -346,6 +377,10 @@ positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
   / estado: kubectl get pods -n deadcode
   / API del clúster: http://127.0.0.1:8080/docs (Compose sigue en :8000)
   / logs: kubectl logs -n deadcode deploy/worker -f
+  / permisos del worker: kubectl auth can-i create pods -n deadcode-sandboxes --as=system:serviceaccount:deadcode:worker
+  / sandboxes vivos: kubectl get pods -n deadcode-sandboxes
+  / si "helm" o "kind" no se reconocen: abrir una terminal nueva (el
+    PATH se actualizó al instalarlos con winget)
 - Apagar (conserva datos): docker compose down
 - Apagar y BORRAR datos de Postgres: docker compose down -v
 
