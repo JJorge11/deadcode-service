@@ -64,8 +64,23 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
      sandbox sin red, sin variables secretas, solo lectura, nobody,
      cap-drop ALL, límites; 0 sandboxes vivos al terminar; el portero
      bloquea imágenes/volúmenes/info (403) y la API no lo ve.
-- Próximo: decidir entre Kubernetes (etapa 4), nivel 2 de análisis
-  (coverage.py) o dashboard.
+- Etapa 4 (Kubernetes local) EN CURSO. Plan:
+  1. HECHO: kind v0.33, Helm v4.3, kubectl v1.36 (de Docker Desktop).
+     Clúster "deadcode" (k8s v1.37) con k8s/kind-config.yaml: 1
+     control-plane + 1 worker; puerto 30080 del clúster -> 127.0.0.1:8080.
+     Demo hecha: Deployment de 2 réplicas desde GHCR y auto-curación
+     al borrar un pod (demo borrada después).
+  2. Postgres y Redis en el clúster (evitar charts de Bitnami: cambió
+     su licencia/imágenes en 2025; preferir manifiestos propios con
+     imágenes oficiales).
+  3. API y worker con la imagen de GHCR (Deployment, Service,
+     ConfigMap, Secret).
+  4. Empaquetar en un chart de Helm.
+  5. SANDBOX_MODE "kubernetes": Jobs + RBAC + Pod Security
+     "restricted" + NetworkPolicy. OJO: la red por defecto de kind
+     (kindnet) NO aplica NetworkPolicy; usar Calico u otra que sí.
+     Pasar el .tar.gz al pod (stdin vía attach u otra técnica).
+- Pendiente después: nivel 2 (coverage.py), dashboard, README.
 - Pendiente: dashboard simple (el usuario tuvo dificultad usando /docs
   para consultar resultados: copiar ids y leer JSON es incómodo).
 - Pendiente: README (se dejó para más adelante); migraciones con
@@ -255,6 +270,7 @@ positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
 - .dockerignore: lo que no entra a la imagen (.venv, .git, .env)
 - docker-compose.yml: API + worker + Postgres + Redis + docker-proxy
   (portero del socket) para desarrollo
+- k8s/kind-config.yaml: definición del clúster local (kind)
 - .env.example: plantilla de variables (copiar a .env)
 
 ## Comandos útiles
@@ -276,6 +292,9 @@ positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
 - Ver la tabla en Postgres:
   docker compose exec postgres psql -U deadcode -d deadcode -c "SELECT id, repo_url, status FROM analyses"
 - Ver sandboxes en ejecución: docker ps --filter label=deadcode.sandbox=true
+- Kubernetes: crear clúster: kind create cluster --config k8s/kind-config.yaml
+  / borrarlo: kind delete cluster --name deadcode
+  / ver nodos y pods: kubectl get nodes ; kubectl get pods -A
 - Apagar (conserva datos): docker compose down
 - Apagar y BORRAR datos de Postgres: docker compose down -v
 

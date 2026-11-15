@@ -1,0 +1,26 @@
+# Clúster local de Kubernetes con kind ("Kubernetes IN Docker").
+# Cada nodo es un contenedor Docker en tu PC.
+#
+# Crear:  kind create cluster --config k8s/kind-config.yaml
+# Borrar: kind delete cluster --name deadcode
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: deadcode
+
+nodes:
+  # El "cerebro": decide dónde corre cada pod y vigila que todo esté
+  # como se pidió.
+  - role: control-plane
+    # Puertos que se abren al CREAR el clúster (después no se pueden
+    # agregar). 30080 dentro del clúster -> 8080 en tu PC: por ahí
+    # llegaremos a la API desde el navegador (http://127.0.0.1:8080).
+    extraPortMappings:
+      - containerPort: 30080
+        hostPort: 8080
+        listenAddress: "127.0.0.1"   # solo desde tu PC, no desde tu red WiFi
+        protocol: TCP
+
+  # Donde corren nuestras aplicaciones (API, worker, Postgres, Redis).
+  # OJO: "worker" aquí es un NODO (un computador del clúster), no
+  # nuestro worker de RQ. Mismo nombre, conceptos distintos.
+  - role: worker
