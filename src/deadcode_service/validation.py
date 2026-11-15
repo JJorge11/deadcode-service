@@ -49,3 +49,16 @@ def normalize_github_url(url: str) -> str:
         raise ValueError("Nombre de repositorio inválido")
 
     return f"https://github.com/{owner}/{repo}"
+
+
+def split_github_url(url: str) -> tuple[str, str]:
+    """Valida y devuelve (dueño, repo).
+
+    Ejemplo: "https://github.com/psf/requests" -> ("psf", "requests")
+    El worker la usa para VOLVER a validar (defensa en profundidad):
+    aunque la API ya validó, el job viaja por Redis y no confiamos
+    ciegamente en lo que llega desde ahí.
+    """
+    canonical = normalize_github_url(url)
+    owner, repo = canonical.removeprefix("https://github.com/").split("/")
+    return owner, repo

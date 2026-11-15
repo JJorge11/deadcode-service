@@ -35,7 +35,7 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   y encola; el worker la pasa a running -> finished/failed y guarda el
   resultado. GET /analyses y GET /analyses/{id} leen de Postgres.
   Probado: los datos sobreviven a `docker compose down` y a vaciar Redis.
-- El análisis sigue SIMULADO (tasks._run_analysis espera 5 s).
+- Análisis REAL con Vulture funcionando (ya no es simulado).
 - /health revisa Postgres y Redis (200 / 503).
 - Etapa 2 en curso: 15 tests con pytest contra Postgres y Redis reales
   (base "deadcode_test" y Redis db 1). En Windows: 14 pasan + 1 saltado
@@ -49,9 +49,19 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
 - Protección SSRF lista: POST /analyses solo acepta
   https://github.com/<dueño>/<repo> (validation.py) y guarda la URL
   normalizada. 52 tests pasan en Windows (38 de validación) + 1 saltado.
-- Próximo (antes de Kubernetes): análisis real con Vulture dentro de un
-  contenedor aislado. Ahí verificar también que el repo exista y sea
-  público (la validación de URL no lo comprueba).
+- Análisis real con Vulture, en 3 partes:
+  1. Explorar Vulture (HECHO, ver "Aprendizajes de Vulture").
+  2. HECHO: el worker descarga el .tar.gz de GitHub y analiza con
+     Vulture + reglas por framework. 73 tests pasan (+1 saltado).
+     Probado con repos reales: este repo (0 hallazgos), psf/requests
+     (88), pallets/itsdangerous (21), repo inexistente (error claro).
+  2b. HECHO: clasificación propia (python_classify.py): location,
+     category, visibility, priority (high/medium/low) y reason. 101
+     tests pasan (+1 saltado). Flask: de 106 hallazgos -> 1 high
+     (_path_is_ancestor, muerto real), 15 medium, 90 low.
+  3. Próximo: cada análisis en su propio contenedor aislado.
+- Pendiente: dashboard simple (el usuario tuvo dificultad usando /docs
+  para consultar resultados: copiar ids y leer JSON es incómodo).
 - Pendiente: README (se dejó para más adelante); migraciones con
   Alembic cuando cambie la tabla.
 
@@ -122,16 +132,88 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
 - En tests locales usar 127.0.0.1, NO "localhost": en Windows,
   localhost prueba primero IPv6 (::1) y pierde ~2 s por conexión.
 
+## Decisiones del análisis real
+- Descarga del .tar.gz (codeload.github.com/<dueño>/<repo>/tar.gz/HEAD)
+  en vez de git clone: sin git en la imagen, una sola petición HTTPS,
+  tamaño controlable. URL armada por nosotros; el worker re-valida la
+  URL (defensa en profundidad: el job viene de Redis).
+- Redirecciones solo a codeload.github.com / github.com.
+- Límites: 50 MB descarga, 300 MB / 20.000 archivos .py extraídos
+  (bombas de descompresión). Solo se extraen archivos regulares .py;
+  tarfile filter="data". Carpeta temporal que se borra sola.
+- Commit analizado: GitHub lo pone en la cabecera pax ("comment").
+- Errores esperados (errors.AnalysisError): mensaje claro al usuario,
+  no se relanzan. Inesperados: "Error inesperado (<tipo>)" al usuario,
+  detalle en logs (se relanzan para que RQ los registre).
+- Vulture fijado en ==2.16 (resultados reproducibles). Reglas por
+  framework (fastapi, flask, django, pydantic, pytest) en
+  analyzers/python_static.py, activadas solo si el código las importa.
+- Tests sin internet: tarballs armados en memoria (tests/helpers.py) y
+  monkeypatch de fetcher._http_get.
+- La confianza de Vulture NO es probabilidad de código muerto: su 100%
+  suele ser un parámetro obligatorio (exc_type en __exit__, owner en
+  __get__, sender en señales). Por eso clasificamos con reglas propias:
+  low = fuera del código (tests/docs/examples), parámetro sin usar
+  (detectado con AST) o __dunder__; high = inalcanzable, import sin
+  usar, o privado (_x) sin usos; medium = público sin usos (puede ser
+  API para otros proyectos). Orden de resultados: por prioridad.
+- Vulture ya ignora imports en __init__.py (re-exportaciones).
+- Qué detecta Vulture: definiciones con nombre (import, variable,
+  attribute, method, class, function, property), parámetros (como
+  "variable") y código inalcanzable. NO detecta archivos completos sin
+  importar ni ramas de if que nunca se cumplen (eso es coverage.py).
+
+## Niveles de análisis (plan acordado)
+1. Estático (Vulture, con ignores por framework: --ignore-decorators
+   para FastAPI/Flask/Django/pytest). Funciona con cualquier repo.
+2. Dinámico con los tests del repo (coverage.py), en contenedor aislado.
+   Mide "qué no ejecutan los tests", no necesariamente código muerto.
+3. Dinámico con tráfico E2E (idea del usuario): levantar la app con
+   coverage.py y generar tráfico (Playwright para web, Schemathesis
+   para APIs con OpenAPI). Inviable para repos arbitrarios (no se sabe
+   arrancarlos, piden BD/claves, login bloquea al robot); viable con
+   opt-in (.deadcode.yml con start/url/escenarios), APIs con OpenAPI o
+   la propia app como demo.
+3+. Etapa 8: agente de IA que explora la app; métrica = % de cobertura
+   alcanzada vs. robot al azar.
+Cruce final: Vulture "no se usa" + coverage "nunca se ejecutó" = muy
+probablemente muerto; Vulture "no se usa" + "sí se ejecutó" = falso
+positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
+
+## Aprendizajes de Vulture (2.16)
+- Probado sobre este repo y sobre pallets/itsdangerous: TODOS los
+  hallazgos de 60% fueron falsos positivos. Causas: frameworks que
+  llaman por decoradores (FastAPI, Pydantic, pytest), API pública de
+  librerías, parámetros obligatorios sin usar (cls, kwargs).
+- Compara por NOMBRE: si una función muerta se llama igual que otra
+  usada, no la reporta (falso negativo). Por eso se combina con
+  coverage.py.
+- Código de salida 3 = "encontró algo", no es error.
+- Para la parte 2: usar la API de Python (Vulture().scavenge() +
+  get_unused_code()), no parsear el texto; guardar TODOS los hallazgos
+  con su confianza y dejar que quien consulta filtre.
+- Contenedor de análisis usado en la exploración: --user 65534,
+  --cap-drop ALL, --security-opt no-new-privileges, --read-only,
+  --tmpfs /tmp, sin volúmenes; tarfile con filter="data".
+
 ## Estructura
 - src/deadcode_service/main.py: API FastAPI (/health, POST /analyses,
   GET /analyses, GET /analyses/{id})
 - src/deadcode_service/db.py: tabla "analyses" y consultas SQL
 - src/deadcode_service/validation.py: validación de URLs (anti-SSRF)
-- src/deadcode_service/tasks.py: tareas que ejecuta el worker
+- src/deadcode_service/tasks.py: tarea del worker (descargar + analizar)
+- src/deadcode_service/fetcher.py: descarga segura del .tar.gz
+- src/deadcode_service/analyzers/python_static.py: Vulture + reglas
+  por framework (interfaz común: analyze(carpeta) -> dict)
+- src/deadcode_service/analyzers/python_classify.py: prioridad,
+  ubicación, categoría y motivo de cada hallazgo
+- src/deadcode_service/errors.py: AnalysisError (errores esperados)
 - src/deadcode_service/worker.py: worker RQ que escucha la cola
 - tests/conftest.py: preparación común (base de test, limpieza, cliente)
 - tests/test_*.py: tests de health, endpoints de análisis, tarea,
-  validación de URLs y worker real (test_worker.py, solo Linux)
+  validación de URLs, descarga, analizador y worker real
+  (test_worker.py, solo Linux)
+- tests/helpers.py: make_tarball() para simular descargas de GitHub
 - .github/workflows/ci.yml: CI (tests + build de imagen + Compose) y
   publicación de la imagen en GHCR
 - src/deadcode_service/__init__.py: vacío (marca el paquete)

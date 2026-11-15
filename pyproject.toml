@@ -13,6 +13,7 @@ dependencies = [
     "redis>=8.1.0",
     "rq>=3.0.0",
     "uvicorn[standard]>=0.54.0",
+    "vulture==2.16",
 ]
 
 [build-system]
@@ -28,4 +29,5 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]   # dónde buscar los tests
+pythonpath = ["."]      # permite "from tests.helpers import ..."
 addopts = "-v"          # mostrar el nombre de cada test al ejecutarlo
