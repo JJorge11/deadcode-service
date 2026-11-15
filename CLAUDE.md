@@ -157,9 +157,22 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
      (owner=helm,name=deadcode; revisiones 1-8): pods, PVC, Secret de
      Postgres y los 7 análisis intactos. Desde aquí NO usar helm
      upgrade/rollback en el clúster: todo cambio es un commit.
-  3. Demostraciones: selfHeal (borrar algo a mano y que vuelva) y
-     cambio solo con commit.
-  4. El CI actualiza image.tag solo (fin de los 2 commits manuales).
+  3. HECHO: demostraciones. selfHeal: NetworkPolicy borrada a mano,
+     recreada en 3 s. Cambio solo con git: commit 10c9bbb (API a 3
+     réplicas) aplicado sin tocar el clúster, pero tardó ~6,5 min
+     (ArgoCD pregunta a GitHub cada ~3 min; un webhook no sirve porque
+     ArgoCD no es accesible desde internet). Para no esperar: botón
+     Refresh o kubectl annotate application deadcode -n argocd
+     argocd.argoproj.io/refresh=normal --overwrite. Volver atrás:
+     git revert (ce78a98) + refresh -> 2 réplicas en 4 s.
+  4. EN PRUEBA: job "deploy" en ci.yml (needs: publish; solo push a
+     main; único con contents: write; concurrency "deploy"): escribe
+     tag: sha-<7 chars> en values.yaml con sed (falla si no encuentra
+     la línea), commit como github-actions[bot], pull --rebase y push.
+     Sin bucle: los commits hechos con GITHUB_TOKEN no disparan
+     workflows. ⚠️ El robot hace commits en main: SIEMPRE `git pull`
+     antes de trabajar. Todo push a main redespliega (aunque solo
+     cambie un .md): aceptable por ahora.
 - Pendiente después: nivel 2 (coverage.py), dashboard, README.
 - Pendiente: dashboard simple (el usuario tuvo dificultad usando /docs
   para consultar resultados: copiar ids y leer JSON es incómodo).

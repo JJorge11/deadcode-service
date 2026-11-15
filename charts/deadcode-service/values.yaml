@@ -7,7 +7,8 @@
 image:
   repository: ghcr.io/jjorge11/deadcode-service
   # Etiqueta INMUTABLE (sha-<commit>), nunca "latest": así se sabe
-  # exactamente qué versión corre. Para actualizar: cambiar esta línea.
+  # exactamente qué versión corre. La ACTUALIZA EL CI (job "deploy")
+  # en cada push a main; ArgoCD despliega ese commit. No editar a mano.
   tag: sha-869245e
   pullPolicy: IfNotPresent
 

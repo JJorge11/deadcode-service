@@ -181,3 +181,52 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
+
+  # ------------------------------------------------------------------
+  # 5) Desplegar (GitOps): escribir la nueva etiqueta en values.yaml y
+  #    hacer commit. ArgoCD ve el commit y actualiza el clúster.
+  #    El CI NO toca el clúster: solo cambia git.
+  # ------------------------------------------------------------------
+  deploy:
+    needs: [publish]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    # Único job que puede escribir en el repo (hacer commit).
+    permissions:
+      contents: write
+
+    # Nunca dos "deploy" a la vez (evita commits que choquen).
+    concurrency:
+      group: deploy
+      cancel-in-progress: false
+
+    steps:
+      - name: Descargar el código (rama main)
+        uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - name: Escribir la nueva etiqueta en values.yaml
+        run: |
+          TAG="sha-${GITHUB_SHA::7}"   # la misma que calculó "publish"
+          sed -i -E "s/^  tag: sha-[0-9a-f]+$/  tag: ${TAG}/" charts/deadcode-service/values.yaml
+          # Si la línea no existe (alguien cambió el formato), fallar.
+          grep -qx "  tag: ${TAG}" charts/deadcode-service/values.yaml
+          echo "TAG=${TAG}" >> "$GITHUB_ENV"
+
+      # Los commits hechos con GITHUB_TOKEN NO disparan otro workflow:
+      # así este commit no vuelve a lanzar el CI (sin bucle infinito).
+      - name: Commit y push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "values.yaml ya tenía ${TAG}: nada que hacer"
+            exit 0
+          fi
+          git commit -am "Despliega la imagen ${TAG}"
+          # Si alguien hizo push mientras tanto, ponerse al día primero.
+          git pull --rebase origin main
+          git push origin main
