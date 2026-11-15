@@ -103,12 +103,37 @@ jobs:
         run: docker compose config --quiet
 
   # ------------------------------------------------------------------
-  # 3) Publicar la imagen en GHCR (GitHub Container Registry).
+  # 3) ¿El chart de Helm es válido?
+  # ------------------------------------------------------------------
+  helm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v7
+
+      - name: Instalar Helm (misma versión que en local)
+        uses: azure/setup-helm@v5
+        with:
+          version: v4.3.2
+
+      # lint: busca errores y malas prácticas en el chart.
+      - name: Revisar el chart (helm lint)
+        run: helm lint charts/deadcode-service --strict
+
+      # template: genera el YAML final (sin un clúster). Si una plantilla
+      # está rota, falla aquí y no al desplegar.
+      - name: Generar el YAML (helm template)
+        run: helm template deadcode charts/deadcode-service -n deadcode > /dev/null
+
+  # ------------------------------------------------------------------
+  # 4) Publicar la imagen en GHCR (GitHub Container Registry).
   #    Solo si los dos jobs anteriores pasaron y solo en push a main
   #    (un pull request no debe generar una imagen "oficial").
   # ------------------------------------------------------------------
   publish:
-    needs: [tests, docker-build]
+    needs: [tests, docker-build, helm]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10

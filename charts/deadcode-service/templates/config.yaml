@@ -1,0 +1,11 @@
+# ConfigMap: configuración NO secreta de la app.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: deadcode-config
+  labels:
+    {{- include "deadcode.labels" (dict "root" . "component" "config") | nindent 4 }}
+data:
+  REDIS_URL: redis://redis:6379/0
+  # ⚠️ "local" es TEMPORAL (ver values.yaml, sección sandbox).
+  SANDBOX_MODE: {{ .Values.sandbox.mode | quote }}

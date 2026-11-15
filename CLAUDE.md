@@ -71,8 +71,8 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
      Demo hecha: Deployment de 2 réplicas desde GHCR y auto-curación
      al borrar un pod (demo borrada después).
   2. HECHO: Postgres (StatefulSet + PVC 1Gi) y Redis (Deployment, sin
-     disco) en el namespace "deadcode", con manifiestos propios en
-     k8s/base/ (sin Bitnami). Secret "postgres-credentials" creado por
+     disco) en el namespace "deadcode", con manifiestos propios (sin
+     Bitnami; hoy dentro del chart). Secret "postgres-credentials" creado por
      comando (no en git). Verificado: usuarios correctos, PONG,
      SELECT version(), y el dato sobrevive a borrar el pod postgres-0.
   3. HECHO: API (2 réplicas, Service NodePort 30080 -> 127.0.0.1:8080)
@@ -82,7 +82,15 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
      borrando un pod de la API en medio.
      ⚠️ TEMPORAL: worker del clúster con SANDBOX_MODE=local (sin
      aislamiento) hasta el paso 5. NO activar coverage.py antes.
-  4. Empaquetar en un chart de Helm.
+  4. HECHO: chart de Helm en charts/deadcode-service (k8s/base/
+     eliminado: una sola fuente de verdad). Release "deadcode" en el
+     namespace "deadcode". Migración: los selectores son INMUTABLES, así
+     que se borraron Deployments/StatefulSet/Services/ConfigMap creados
+     con kubectl (NO el PVC, el Secret ni el namespace) y Helm los
+     recreó con los mismos nombres: Postgres reutilizó su disco (datos
+     conservados, verificado). Probado upgrade (--set api.replicas=3) y
+     rollback. CI: nuevo job "helm" (lint --strict + template) y publish
+     ahora depende también de él.
   5. SANDBOX_MODE "kubernetes": Jobs + RBAC + Pod Security
      "restricted" + NetworkPolicy. OJO: la red por defecto de kind
      (kindnet) NO aplica NetworkPolicy; usar Calico u otra que sí.
@@ -221,6 +229,14 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   (solo el proceso): si liveness revisara Postgres, una caída de
   Postgres reiniciaría todas las APIs. API y worker: uid 1000,
   readOnlyRootFilesystem + emptyDir en /tmp, drop ALL, seccomp.
+- Helm: todos los valores en values.yaml (imagen, réplicas, recursos,
+  modo sandbox); NUNCA contraseñas (el chart solo nombra el Secret
+  existente). _helpers.tpl tiene el bloque de DATABASE_URL una sola vez,
+  etiquetas estándar app.kubernetes.io/* y la seguridad común. El
+  selector NO incluye la versión (si la incluyera, cada actualización
+  perdería sus pods). checksum/config reinicia pods si cambia el
+  ConfigMap. Nombres fijos (api, worker, postgres, redis): un release
+  por namespace.
 - Usuarios de imágenes alpine: postgres = uid 70:70 (¡no 999, ese es
   Debian!), redis = 999:1000. Verificar siempre con
   `docker run --rm --entrypoint sh <imagen> -c 'grep ^<user>: /etc/passwd'`.
@@ -293,8 +309,8 @@ positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
 - docker-compose.yml: API + worker + Postgres + Redis + docker-proxy
   (portero del socket) para desarrollo
 - k8s/kind-config.yaml: definición del clúster local (kind)
-- k8s/base/: manifiestos de Kubernetes (namespace, config, postgres,
-  redis, api, worker)
+- charts/deadcode-service/: chart de Helm (Chart.yaml, values.yaml,
+  templates/ con config, api, worker, postgres, redis y _helpers.tpl)
 - .env.example: plantilla de variables (copiar a .env)
 
 ## Comandos útiles
@@ -320,10 +336,13 @@ positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
   / borrarlo: kind delete cluster --name deadcode
   / ver nodos y pods: kubectl get nodes ; kubectl get pods -A
 - K8s, primera vez (namespace + Secret con contraseña aleatoria):
-  kubectl apply -f k8s/base/namespace.yaml
+  kubectl create namespace deadcode
   $pw = -join ((48..57)+(65..90)+(97..122) | Get-Random -Count 24 | % {[char]$_})
   kubectl create secret generic postgres-credentials -n deadcode --from-literal=POSTGRES_USER=deadcode --from-literal=POSTGRES_DB=deadcode --from-literal=POSTGRES_PASSWORD=$pw
-- K8s, desplegar: kubectl apply -f k8s/base/
+- K8s, instalar/actualizar: helm upgrade --install deadcode charts/deadcode-service -n deadcode --wait
+  / historial: helm history deadcode -n deadcode
+  / volver atrás: helm rollback deadcode <revisión> -n deadcode
+  / revisar el chart: helm lint charts/deadcode-service --strict
   / estado: kubectl get pods -n deadcode
   / API del clúster: http://127.0.0.1:8080/docs (Compose sigue en :8000)
   / logs: kubectl logs -n deadcode deploy/worker -f

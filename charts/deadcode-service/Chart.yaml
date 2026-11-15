@@ -1,0 +1,14 @@
+# Chart de Helm: el "paquete" de Kubernetes de deadcode-service.
+#
+# Instalar o actualizar (el Secret "postgres-credentials" debe existir
+# antes; ver CLAUDE.md):
+#   helm upgrade --install deadcode charts/deadcode-service -n deadcode
+apiVersion: v2
+name: deadcode-service
+description: Detecta código muerto en repositorios públicos de GitHub
+type: application
+
+# Versión del CHART (del empaquetado). Subirla al cambiar las plantillas.
+version: 0.1.0
+# Versión de la APP. Informativa: la imagen real se elige en values.yaml.
+appVersion: "0.1.0"

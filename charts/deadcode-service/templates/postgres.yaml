@@ -1,0 +1,85 @@
+# PostgreSQL: Service + StatefulSet con disco persistente.
+# En la nube se usará un Postgres administrado (RDS); esto es para el
+# clúster local.
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  labels:
+    {{- include "deadcode.labels" (dict "root" . "component" "postgres") | nindent 4 }}
+spec:
+  selector:
+    {{- include "deadcode.selector" (dict "root" . "component" "postgres") | nindent 4 }}
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  # Mismo nombre que antes de Helm: así reutiliza el disco existente
+  # (PVC "data-postgres-0") y no se pierden datos.
+  name: postgres
+  labels:
+    {{- include "deadcode.labels" (dict "root" . "component" "postgres") | nindent 4 }}
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "deadcode.selector" (dict "root" . "component" "postgres") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "deadcode.labels" (dict "root" . "component" "postgres") | nindent 8 }}
+    spec:
+      securityContext:
+        # Usuario "postgres" de la imagen ALPINE: uid 70 (no 999, que es
+        # el de la imagen Debian).
+        runAsUser: 70
+        runAsGroup: 70
+        fsGroup: 70
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: postgres
+          image: {{ .Values.postgres.image }}
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: {{ .Values.postgres.existingSecret }}
+          env:
+            # Subcarpeta: Postgres exige una carpeta vacía.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          resources:
+            {{- toYaml .Values.postgres.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ .Values.postgres.storage }}

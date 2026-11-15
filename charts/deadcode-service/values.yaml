@@ -1,0 +1,48 @@
+# Valores del chart: TODO lo configurable, en un solo lugar.
+# Se pueden cambiar al instalar: helm upgrade ... --set api.replicas=3
+#
+# ⚠️ Este archivo va en git: NUNCA poner contraseñas aquí.
+
+# Imagen de la app (API y worker). Publicada por el CI en GHCR.
+image:
+  repository: ghcr.io/jjorge11/deadcode-service
+  # Etiqueta INMUTABLE (sha-<commit>), nunca "latest": así se sabe
+  # exactamente qué versión corre. Para actualizar: cambiar esta línea.
+  tag: sha-c295ff8
+  pullPolicy: IfNotPresent
+
+api:
+  replicas: 2              # dos copias: si una cae, la otra sigue
+  nodePort: 30080          # kind lo conecta con 127.0.0.1:8080
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {memory: 256Mi}
+
+worker:
+  replicas: 1
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {memory: 768Mi}
+  tmpSizeLimit: 1Gi        # espacio para extraer repos durante el análisis
+
+# ⚠️ TEMPORAL: "local" = el worker analiza en su propio pod, SIN
+# aislamiento (aceptable solo con Vulture, que no ejecuta código).
+# Pasará a "kubernetes" en el paso 5 (sandbox con Jobs).
+sandbox:
+  mode: local
+
+postgres:
+  image: postgres:17-alpine
+  storage: 1Gi
+  # Secret con POSTGRES_USER, POSTGRES_PASSWORD y POSTGRES_DB.
+  # NO lo crea el chart: se crea con un comando (ver CLAUDE.md).
+  existingSecret: postgres-credentials
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {memory: 512Mi}
+
+redis:
+  image: redis:8-alpine
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {memory: 256Mi}

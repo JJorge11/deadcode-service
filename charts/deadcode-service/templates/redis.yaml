@@ -1,40 +1,35 @@
-# Redis en Kubernetes: Deployment (sin disco) + Service.
-#
-# Redis es solo la COLA: si se pierde lo que tiene, la verdad sigue en
-# Postgres. Por eso no necesita disco persistente (igual que en Compose).
-
-# --- Service: el nombre fijo "redis" ----------------------------------
+# Redis (solo la COLA; la verdad está en Postgres): Service + Deployment.
 apiVersion: v1
 kind: Service
 metadata:
   name: redis
-  namespace: deadcode
+  labels:
+    {{- include "deadcode.labels" (dict "root" . "component" "redis") | nindent 4 }}
 spec:
   selector:
-    app: redis
+    {{- include "deadcode.selector" (dict "root" . "component" "redis") | nindent 4 }}
   ports:
     - port: 6379
       targetPort: 6379
 ---
-# --- Deployment: pods intercambiables ---------------------------------
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: redis
-  namespace: deadcode
+  labels:
+    {{- include "deadcode.labels" (dict "root" . "component" "redis") | nindent 4 }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: redis
+      {{- include "deadcode.selector" (dict "root" . "component" "redis") | nindent 6 }}
   template:
     metadata:
       labels:
-        app: redis
+        {{- include "deadcode.labels" (dict "root" . "component" "redis") | nindent 8 }}
     spec:
       securityContext:
-        # Usuario "redis" de la imagen (uid 999, grupo 1000), no root.
-        # Verificado con: docker run --rm --entrypoint sh redis:8-alpine -c 'grep ^redis: /etc/passwd'
+        # Usuario "redis" de la imagen alpine: uid 999, grupo 1000.
         runAsUser: 999
         runAsGroup: 1000
         runAsNonRoot: true
@@ -42,7 +37,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: redis
-          image: redis:8-alpine         # misma versión que en Compose
+          image: {{ .Values.redis.image }}
           ports:
             - containerPort: 6379
           readinessProbe:
@@ -58,8 +53,7 @@ spec:
             timeoutSeconds: 3
             failureThreshold: 6
           resources:
-            requests: {cpu: 50m, memory: 64Mi}
-            limits: {memory: 256Mi}
+            {{- toYaml .Values.redis.resources | nindent 12 }}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -67,7 +61,7 @@ spec:
               drop: ["ALL"]
           volumeMounts:
             - name: data
-              mountPath: /data      # carpeta de trabajo de Redis
+              mountPath: /data
       volumes:
         - name: data
-          emptyDir: {}              # carpeta temporal: se borra con el pod
+          emptyDir: {}

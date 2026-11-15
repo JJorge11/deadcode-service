@@ -1,0 +1,42 @@
+# Worker de RQ: misma imagen que la API, otro comando.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  labels:
+    {{- include "deadcode.labels" (dict "root" . "component" "worker") | nindent 4 }}
+spec:
+  replicas: {{ .Values.worker.replicas }}
+  selector:
+    matchLabels:
+      {{- include "deadcode.selector" (dict "root" . "component" "worker") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "deadcode.labels" (dict "root" . "component" "worker") | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
+    spec:
+      securityContext:
+        {{- include "deadcode.podSecurity" . | nindent 8 }}
+      containers:
+        - name: worker
+          image: {{ include "deadcode.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["python", "-m", "deadcode_service.worker"]
+          envFrom:
+            - configMapRef:
+                name: deadcode-config
+          env:
+            {{- include "deadcode.databaseEnv" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.worker.resources | nindent 12 }}
+          securityContext:
+            {{- include "deadcode.containerSecurity" . | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp   # aquí se extraen los repos (modo local)
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: {{ .Values.worker.tmpSizeLimit }}
