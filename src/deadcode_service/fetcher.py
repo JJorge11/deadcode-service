@@ -97,7 +97,9 @@ def _http_get(url: str) -> bytes:
 # --- Extracción ------------------------------------------------------
 
 
-def _extract_python_files(data: bytes, dest: Path) -> DownloadedRepo:
+def extract_python_files(data: bytes, dest: Path) -> DownloadedRepo:
+    """Extrae solo los .py del .tar.gz en `dest`. Corre en el SANDBOX:
+    el archivo viene de internet y no confiamos en su contenido."""
     try:
         with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tar:
             members = []
@@ -130,8 +132,8 @@ def _extract_python_files(data: bytes, dest: Path) -> DownloadedRepo:
     return DownloadedRepo(path=dest / root_folder, commit=commit)
 
 
-def download_repo(repo_url: str, dest: Path) -> DownloadedRepo:
-    """Descarga el repo en `dest` (solo sus archivos .py)."""
+def download_tarball(repo_url: str) -> bytes:
+    """Descarga el .tar.gz del repo (sin abrirlo). Corre en el WORKER:
+    el sandbox no tiene red, así que el worker le entrega los bytes."""
     owner, repo = split_github_url(repo_url)  # valida de nuevo
-    data = _http_get(DOWNLOAD_URL.format(owner=owner, repo=repo))
-    return _extract_python_files(data, dest)
+    return _http_get(DOWNLOAD_URL.format(owner=owner, repo=repo))

@@ -4,6 +4,11 @@ FROM python:3.12-slim
 # Copiamos el ejecutable de uv desde su imagen oficial (misma versión que en local).
 COPY --from=ghcr.io/astral-sh/uv:0.13.8 /uv /usr/local/bin/uv
 
+# CLI de Docker: el worker lo usa para crear un sandbox por análisis.
+# Solo el programa "docker"; NO el servicio de Docker. Sin acceso al
+# socket (que solo se le da al worker, a través de un proxy), no sirve.
+COPY --from=docker:29.8.1-cli /usr/local/bin/docker /usr/local/bin/docker
+
 # Configuración de uv dentro del contenedor:
 # - COMPILE_BYTECODE: precompila los .py para que la API arranque más rápido.
 # - LINK_MODE=copy: copia archivos en vez de enlazarlos (evita avisos en Docker).

@@ -59,7 +59,13 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
      category, visibility, priority (high/medium/low) y reason. 101
      tests pasan (+1 saltado). Flask: de 106 hallazgos -> 1 high
      (_path_is_ancestor, muerto real), 15 medium, 90 low.
-  3. Próximo: cada análisis en su propio contenedor aislado.
+  3. HECHO: cada análisis en su propio contenedor desechable
+     (sandbox.py). 112 tests pasan (+1 saltado). Verificado en vivo:
+     sandbox sin red, sin variables secretas, solo lectura, nobody,
+     cap-drop ALL, límites; 0 sandboxes vivos al terminar; el portero
+     bloquea imágenes/volúmenes/info (403) y la API no lo ve.
+- Próximo: decidir entre Kubernetes (etapa 4), nivel 2 de análisis
+  (coverage.py) o dashboard.
 - Pendiente: dashboard simple (el usuario tuvo dificultad usando /docs
   para consultar resultados: copiar ids y leer JSON es incómodo).
 - Pendiente: README (se dejó para más adelante); migraciones con
@@ -158,6 +164,29 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   usar, o privado (_x) sin usos; medium = público sin usos (puede ser
   API para otros proyectos). Orden de resultados: por prioridad.
 - Vulture ya ignora imports en __init__.py (re-exportaciones).
+- SANDBOX: el worker descarga (código nuestro) y pasa el .tar.gz por
+  stdin a un contenedor desechable que extrae y analiza (código ajeno),
+  y devuelve JSON por stdout. Misma imagen que la app, comando
+  "python -m deadcode_service.sandbox_main" (la imagen no tiene
+  secretos: llegan solo como variables al worker/API). Flags:
+  --rm -i --network none --read-only --tmpfs /tmp (noexec, 512m)
+  --user 65534 --cap-drop ALL no-new-privileges --memory 512m (=swap)
+  --cpus 1 --pids-limit 128 --pull never; timeout 120 s (luego
+  docker rm -f). Exit 137 = sin memoria. SandboxError (inesperado) NO
+  es AnalysisError: el usuario ve "Error inesperado".
+- SANDBOX_MODE: "docker" en Compose; "local" (sin aislamiento, mismo
+  proceso) en tests y Windows. conftest fuerza "local".
+- Socket de Docker = control total (admin del PC). Nadie lo recibe
+  directo: "portero" tecnativa/docker-socket-proxy:v0.5.0 con
+  CONTAINERS=1 y POST=1, en red "docker-control" (internal) donde solo
+  está el worker; la API no lo ve. El worker usa DOCKER_HOST y el CLI
+  docker:29.8.1-cli copiado en el Dockerfile.
+- Límite conocido: con CONTAINERS+POST el worker podría crear
+  contenedores privilegiados si lo comprometieran (el proxy filtra por
+  ruta, no por contenido). Mitigación: el worker no ejecuta código
+  ajeno. En Kubernetes (etapa 4) se resolverá con Jobs + Pod Security
+  "restricted" + NetworkPolicy.
+- Falta en CI: test del sandbox real con Docker (hoy solo en vivo).
 - Qué detecta Vulture: definiciones con nombre (import, variable,
   attribute, method, class, function, property), parámetros (como
   "variable") y código inalcanzable. NO detecta archivos completos sin
@@ -208,6 +237,10 @@ positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
 - src/deadcode_service/analyzers/python_classify.py: prioridad,
   ubicación, categoría y motivo de cada hallazgo
 - src/deadcode_service/errors.py: AnalysisError (errores esperados)
+- src/deadcode_service/sandbox.py: lanza el contenedor desechable
+  (lado worker) con todas las protecciones
+- src/deadcode_service/sandbox_main.py: programa DENTRO del sandbox
+  (stdin .tar.gz -> stdout JSON)
 - src/deadcode_service/worker.py: worker RQ que escucha la cola
 - tests/conftest.py: preparación común (base de test, limpieza, cliente)
 - tests/test_*.py: tests de health, endpoints de análisis, tarea,
@@ -220,7 +253,8 @@ positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
 - pyproject.toml y uv.lock: dependencias (gestionadas con uv)
 - Dockerfile: receta de la imagen de la API
 - .dockerignore: lo que no entra a la imagen (.venv, .git, .env)
-- docker-compose.yml: API + worker + Postgres + Redis para desarrollo
+- docker-compose.yml: API + worker + Postgres + Redis + docker-proxy
+  (portero del socket) para desarrollo
 - .env.example: plantilla de variables (copiar a .env)
 
 ## Comandos útiles
@@ -241,6 +275,7 @@ positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
 - Probar un análisis: abrir http://127.0.0.1:8000/docs, POST /analyses
 - Ver la tabla en Postgres:
   docker compose exec postgres psql -U deadcode -d deadcode -c "SELECT id, repo_url, status FROM analyses"
+- Ver sandboxes en ejecución: docker ps --filter label=deadcode.sandbox=true
 - Apagar (conserva datos): docker compose down
 - Apagar y BORRAR datos de Postgres: docker compose down -v
 

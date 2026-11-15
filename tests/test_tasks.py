@@ -75,14 +75,14 @@ def test_error_inesperado_oculta_detalles_y_relanza(monkeypatch):
 
 def test_la_carpeta_temporal_se_borra(monkeypatch):
     carpetas = []
-    original = fetcher._extract_python_files
+    original = fetcher.extract_python_files
 
     def espiar(data, dest):
         carpetas.append(dest)
         return original(data, dest)
 
     monkeypatch.setattr(fetcher, "_http_get", lambda url: make_tarball({"app.py": "x = 1"}))
-    monkeypatch.setattr(fetcher, "_extract_python_files", espiar)
+    monkeypatch.setattr(fetcher, "extract_python_files", espiar)
 
     tasks._run_analysis(REPO)
 

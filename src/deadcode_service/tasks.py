@@ -6,13 +6,10 @@ simples (texto, números) porque viajan guardados en Redis.
 """
 
 import logging
-import tempfile
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
 
-from deadcode_service import db, fetcher
-from deadcode_service.analyzers import python_static
+from deadcode_service import db, fetcher, sandbox
 from deadcode_service.errors import AnalysisError
 
 logger = logging.getLogger(__name__)
@@ -43,17 +40,13 @@ def analyze_repo(analysis_id: str, repo_url: str) -> dict | None:
 
 
 def _run_analysis(repo_url: str) -> dict:
-    """Descarga el repo en una carpeta temporal y lo analiza.
-
-    La carpeta se borra sola al salir del "with", aunque haya errores.
-    """
-    with tempfile.TemporaryDirectory(prefix="deadcode-") as tmp:
-        repo = fetcher.download_repo(repo_url, Path(tmp))
-        analysis = python_static.analyze(repo.path)
+    """El worker descarga (código confiable: el nuestro) y el SANDBOX
+    abre y analiza el código ajeno, aislado (ver sandbox.py)."""
+    tarball = fetcher.download_tarball(repo_url)
+    analysis = sandbox.run(tarball)
 
     return {
         "repo_url": repo_url,
-        "commit": repo.commit,
         **analysis,
         "analyzed_at": datetime.now(timezone.utc).isoformat(),
     }

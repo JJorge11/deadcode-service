@@ -31,11 +31,39 @@ services:
       # El worker escribe el estado y resultado de cada análisis en Postgres.
       DATABASE_URL: postgresql://${POSTGRES_USER:?falta en .env}:${POSTGRES_PASSWORD:?falta en .env}@postgres:5432/${POSTGRES_DB:?falta en .env}
       REDIS_URL: redis://redis:6379/0
+      # Cada análisis corre en un contenedor desechable (ver sandbox.py).
+      SANDBOX_MODE: docker
+      SANDBOX_IMAGE: deadcode-service:dev
+      # El worker NO tiene el socket de Docker: habla con el "portero".
+      DOCKER_HOST: tcp://docker-proxy:2375
+      DOCKER_CONFIG: /tmp/.docker   # el usuario "app" no tiene carpeta personal
+    networks:
+      - default          # para Postgres, Redis e internet (descargar de GitHub)
+      - docker-control   # solo para hablar con el portero
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      docker-proxy:
+        condition: service_started
+
+  # "Portero" del socket de Docker. El socket da control TOTAL de Docker
+  # (equivale a ser administrador del PC), así que nadie lo recibe
+  # directamente: este proxy solo deja pasar operaciones sobre
+  # contenedores (crear, iniciar, esperar, borrar) y bloquea el resto
+  # (imágenes, volúmenes, redes, info del sistema...).
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy:v0.5.0
+    environment:
+      CONTAINERS: 1   # permitir /containers/...
+      POST: 1         # permitir crear/iniciar/borrar (no solo leer)
+    volumes:
+      # ":ro" NO hace "solo lectura" la API de Docker; lo que limita es
+      # el proxy. Solo este contenedor ve el socket.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - docker-control   # NO está en la red "default": la API no lo ve
 
   # Base de datos: guardará los resultados de los análisis
   postgres:
@@ -71,3 +99,8 @@ services:
 
 volumes:
   postgres-data:
+
+networks:
+  # Red privada worker <-> portero. "internal": sin salida a internet.
+  docker-control:
+    internal: true

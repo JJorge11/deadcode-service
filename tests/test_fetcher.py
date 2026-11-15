@@ -13,6 +13,11 @@ from tests.helpers import make_tarball
 REPO = "https://github.com/psf/requests"
 
 
+def download_repo(repo_url, dest):
+    """Descargar (worker) + extraer (sandbox), juntos para los tests."""
+    return fetcher.extract_python_files(fetcher.download_tarball(repo_url), dest)
+
+
 @pytest.fixture
 def fake_download(monkeypatch):
     """Reemplaza la descarga real. Devuelve una lista donde quedan las
@@ -38,7 +43,7 @@ def test_descarga_desde_codeload_y_extrae_solo_archivos_python(tmp_path, fake_do
         make_tarball({"app.py": "x = 1", "pkg/util.py": "y = 2", "README.md": "hola", "logo.png": "..."})
     )
 
-    repo = fetcher.download_repo(REPO, tmp_path)
+    repo = download_repo(REPO, tmp_path)
 
     assert requested == ["https://codeload.github.com/psf/requests/tar.gz/HEAD"]
     assert repo.path == tmp_path / "repo-abc123"
@@ -51,7 +56,7 @@ def test_url_invalida_se_rechaza_sin_descargar_nada(tmp_path, fake_download):
     requested = fake_download(make_tarball({"app.py": ""}))
 
     with pytest.raises(ValueError):
-        fetcher.download_repo("http://169.254.169.254/latest", tmp_path)
+        download_repo("http://169.254.169.254/latest", tmp_path)
 
     assert requested == []  # defensa en profundidad: ni siquiera se conectó
 
@@ -60,7 +65,7 @@ def test_repo_sin_archivos_python(tmp_path, fake_download):
     fake_download(make_tarball({"index.js": "console.log(1)"}))
 
     with pytest.raises(fetcher.NoPythonFilesError):
-        fetcher.download_repo(REPO, tmp_path)
+        download_repo(REPO, tmp_path)
 
 
 # --- Archivos maliciosos o rotos -------------------------------------
@@ -72,7 +77,7 @@ def test_ruta_tramposa_se_bloquea_y_no_escribe_fuera(tmp_path, fake_download):
     fake_download(make_tarball({"../../evil.py": "import os"}, root=""))
 
     with pytest.raises(fetcher.InvalidArchiveError):
-        fetcher.download_repo(REPO, dest)
+        download_repo(REPO, dest)
 
     assert not (tmp_path / "evil.py").exists()
 
@@ -88,7 +93,7 @@ def test_enlaces_simbolicos_se_ignoran(tmp_path, fake_download):
         tar.addfile(real, io.BytesIO(b""))
     fake_download(buffer.getvalue())
 
-    repo = fetcher.download_repo(REPO, tmp_path)
+    repo = download_repo(REPO, tmp_path)
 
     assert not (repo.path / "secreto.py").exists()
     assert (repo.path / "app.py").exists()
@@ -98,7 +103,7 @@ def test_archivo_corrupto(tmp_path, fake_download):
     fake_download(b"esto no es un tar.gz")
 
     with pytest.raises(fetcher.InvalidArchiveError):
-        fetcher.download_repo(REPO, tmp_path)
+        download_repo(REPO, tmp_path)
 
 
 # --- Límites de tamaño ------------------------------------------------
@@ -109,7 +114,7 @@ def test_demasiados_archivos(tmp_path, fake_download, monkeypatch):
     fake_download(make_tarball({"a.py": "", "b.py": "", "c.py": ""}))
 
     with pytest.raises(fetcher.RepoTooLargeError):
-        fetcher.download_repo(REPO, tmp_path)
+        download_repo(REPO, tmp_path)
 
 
 def test_demasiados_bytes_descomprimidos(tmp_path, fake_download, monkeypatch):
@@ -117,7 +122,7 @@ def test_demasiados_bytes_descomprimidos(tmp_path, fake_download, monkeypatch):
     fake_download(make_tarball({"grande.py": "x" * 100}))
 
     with pytest.raises(fetcher.RepoTooLargeError):
-        fetcher.download_repo(REPO, tmp_path)
+        download_repo(REPO, tmp_path)
 
 
 class _FakeResponse:

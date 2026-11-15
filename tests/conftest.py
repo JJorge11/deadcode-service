@@ -27,6 +27,9 @@ TEST_DB = "deadcode_test"
 
 os.environ["DATABASE_URL"] = f"postgresql://{PG_USER}:{PG_PASSWORD}@{PG_HOST}:5432/{TEST_DB}"
 os.environ["REDIS_URL"] = f"redis://{os.environ.get('REDIS_HOST', LOCAL_HOST)}:6379/1"
+# Tests: análisis en el mismo proceso (sin Docker). El sandbox real se
+# prueba aparte en test_sandbox.py.
+os.environ["SANDBOX_MODE"] = "local"
 
 # 2) Recién ahora importamos (después de definir las variables).
 import psycopg  # noqa: E402
