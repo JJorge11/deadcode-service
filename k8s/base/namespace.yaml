@@ -1,0 +1,7 @@
+# Namespace: una "carpeta" para todos los recursos del proyecto,
+# separada de los del sistema (kube-system) y de los sandboxes (más
+# adelante, en su propio namespace con reglas más estrictas).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: deadcode

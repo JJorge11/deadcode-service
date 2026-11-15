@@ -70,9 +70,11 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
      control-plane + 1 worker; puerto 30080 del clúster -> 127.0.0.1:8080.
      Demo hecha: Deployment de 2 réplicas desde GHCR y auto-curación
      al borrar un pod (demo borrada después).
-  2. Postgres y Redis en el clúster (evitar charts de Bitnami: cambió
-     su licencia/imágenes en 2025; preferir manifiestos propios con
-     imágenes oficiales).
+  2. HECHO: Postgres (StatefulSet + PVC 1Gi) y Redis (Deployment, sin
+     disco) en el namespace "deadcode", con manifiestos propios en
+     k8s/base/ (sin Bitnami). Secret "postgres-credentials" creado por
+     comando (no en git). Verificado: usuarios correctos, PONG,
+     SELECT version(), y el dato sobrevive a borrar el pod postgres-0.
   3. API y worker con la imagen de GHCR (Deployment, Service,
      ConfigMap, Secret).
   4. Empaquetar en un chart de Helm.
@@ -202,6 +204,14 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   ajeno. En Kubernetes (etapa 4) se resolverá con Jobs + Pod Security
   "restricted" + NetworkPolicy.
 - Falta en CI: test del sandbox real con Docker (hoy solo en vivo).
+- Kubernetes: Secrets NO van en git (base64 no es cifrado); se crean
+  por comando. Postgres = StatefulSet (identidad + disco propio);
+  Redis/API/worker = Deployment (intercambiables). PGDATA en subcarpeta
+  del volumen. readinessProbe (¿listo? -> recibe tráfico) y
+  livenessProbe (¿vivo? -> si no, reinicio). requests/limits en todo.
+- Usuarios de imágenes alpine: postgres = uid 70:70 (¡no 999, ese es
+  Debian!), redis = 999:1000. Verificar siempre con
+  `docker run --rm --entrypoint sh <imagen> -c 'grep ^<user>: /etc/passwd'`.
 - Qué detecta Vulture: definiciones con nombre (import, variable,
   attribute, method, class, function, property), parámetros (como
   "variable") y código inalcanzable. NO detecta archivos completos sin
@@ -271,6 +281,7 @@ positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
 - docker-compose.yml: API + worker + Postgres + Redis + docker-proxy
   (portero del socket) para desarrollo
 - k8s/kind-config.yaml: definición del clúster local (kind)
+- k8s/base/: manifiestos de Kubernetes (namespace, postgres, redis)
 - .env.example: plantilla de variables (copiar a .env)
 
 ## Comandos útiles
@@ -295,6 +306,12 @@ positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
 - Kubernetes: crear clúster: kind create cluster --config k8s/kind-config.yaml
   / borrarlo: kind delete cluster --name deadcode
   / ver nodos y pods: kubectl get nodes ; kubectl get pods -A
+- K8s, primera vez (namespace + Secret con contraseña aleatoria):
+  kubectl apply -f k8s/base/namespace.yaml
+  $pw = -join ((48..57)+(65..90)+(97..122) | Get-Random -Count 24 | % {[char]$_})
+  kubectl create secret generic postgres-credentials -n deadcode --from-literal=POSTGRES_USER=deadcode --from-literal=POSTGRES_DB=deadcode --from-literal=POSTGRES_PASSWORD=$pw
+- K8s, desplegar: kubectl apply -f k8s/base/
+  / estado: kubectl get pods -n deadcode
 - Apagar (conserva datos): docker compose down
 - Apagar y BORRAR datos de Postgres: docker compose down -v
 

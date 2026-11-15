@@ -1,0 +1,73 @@
+# Redis en Kubernetes: Deployment (sin disco) + Service.
+#
+# Redis es solo la COLA: si se pierde lo que tiene, la verdad sigue en
+# Postgres. Por eso no necesita disco persistente (igual que en Compose).
+
+# --- Service: el nombre fijo "redis" ----------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: deadcode
+spec:
+  selector:
+    app: redis
+  ports:
+    - port: 6379
+      targetPort: 6379
+---
+# --- Deployment: pods intercambiables ---------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: deadcode
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      securityContext:
+        # Usuario "redis" de la imagen (uid 999, grupo 1000), no root.
+        # Verificado con: docker run --rm --entrypoint sh redis:8-alpine -c 'grep ^redis: /etc/passwd'
+        runAsUser: 999
+        runAsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: redis
+          image: redis:8-alpine         # misma versión que en Compose
+          ports:
+            - containerPort: 6379
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {memory: 256Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /data      # carpeta de trabajo de Redis
+      volumes:
+        - name: data
+          emptyDir: {}              # carpeta temporal: se borra con el pod
