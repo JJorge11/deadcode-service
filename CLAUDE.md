@@ -75,8 +75,13 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
      k8s/base/ (sin Bitnami). Secret "postgres-credentials" creado por
      comando (no en git). Verificado: usuarios correctos, PONG,
      SELECT version(), y el dato sobrevive a borrar el pod postgres-0.
-  3. API y worker con la imagen de GHCR (Deployment, Service,
-     ConfigMap, Secret).
+  3. HECHO: API (2 réplicas, Service NodePort 30080 -> 127.0.0.1:8080)
+     y worker con la imagen ghcr.io/jjorge11/deadcode-service:sha-4990c1d.
+     ConfigMap "deadcode-config" (REDIS_URL, SANDBOX_MODE). Verificado:
+     /health 200, análisis real de punta a punta, y 60/60 peticiones OK
+     borrando un pod de la API en medio.
+     ⚠️ TEMPORAL: worker del clúster con SANDBOX_MODE=local (sin
+     aislamiento) hasta el paso 5. NO activar coverage.py antes.
   4. Empaquetar en un chart de Helm.
   5. SANDBOX_MODE "kubernetes": Jobs + RBAC + Pod Security
      "restricted" + NetworkPolicy. OJO: la red por defecto de kind
@@ -209,6 +214,13 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   Redis/API/worker = Deployment (intercambiables). PGDATA en subcarpeta
   del volumen. readinessProbe (¿listo? -> recibe tráfico) y
   livenessProbe (¿vivo? -> si no, reinicio). requests/limits en todo.
+- K8s: DATABASE_URL se arma con $(POSTGRES_USER)/$(POSTGRES_PASSWORD)
+  de variables definidas antes (desde el Secret): la contraseña nunca
+  se escribe en un archivo. Imagen con etiqueta sha-<commit>, nunca
+  latest. readinessProbe = /health (deps); livenessProbe = tcpSocket
+  (solo el proceso): si liveness revisara Postgres, una caída de
+  Postgres reiniciaría todas las APIs. API y worker: uid 1000,
+  readOnlyRootFilesystem + emptyDir en /tmp, drop ALL, seccomp.
 - Usuarios de imágenes alpine: postgres = uid 70:70 (¡no 999, ese es
   Debian!), redis = 999:1000. Verificar siempre con
   `docker run --rm --entrypoint sh <imagen> -c 'grep ^<user>: /etc/passwd'`.
@@ -281,7 +293,8 @@ positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
 - docker-compose.yml: API + worker + Postgres + Redis + docker-proxy
   (portero del socket) para desarrollo
 - k8s/kind-config.yaml: definición del clúster local (kind)
-- k8s/base/: manifiestos de Kubernetes (namespace, postgres, redis)
+- k8s/base/: manifiestos de Kubernetes (namespace, config, postgres,
+  redis, api, worker)
 - .env.example: plantilla de variables (copiar a .env)
 
 ## Comandos útiles
@@ -312,6 +325,8 @@ positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
   kubectl create secret generic postgres-credentials -n deadcode --from-literal=POSTGRES_USER=deadcode --from-literal=POSTGRES_DB=deadcode --from-literal=POSTGRES_PASSWORD=$pw
 - K8s, desplegar: kubectl apply -f k8s/base/
   / estado: kubectl get pods -n deadcode
+  / API del clúster: http://127.0.0.1:8080/docs (Compose sigue en :8000)
+  / logs: kubectl logs -n deadcode deploy/worker -f
 - Apagar (conserva datos): docker compose down
 - Apagar y BORRAR datos de Postgres: docker compose down -v
 

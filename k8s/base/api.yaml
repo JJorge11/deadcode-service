@@ -1,0 +1,98 @@
+# API de deadcode-service: Deployment + Service (NodePort).
+#
+# Desde tu PC: http://127.0.0.1:8080 (kind conecta el puerto 30080 del
+# clúster con el 8080 de tu PC; ver k8s/kind-config.yaml).
+
+# --- Service: abre la API fuera del clúster ----------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: deadcode
+spec:
+  # NodePort: abre un puerto en CADA nodo del clúster (30000-32767).
+  type: NodePort
+  selector:
+    app: api
+  ports:
+    - port: 8000        # dentro del clúster: http://api:8000
+      targetPort: 8000  # puerto del contenedor
+      nodePort: 30080   # en los nodos (kind lo lleva a 127.0.0.1:8080)
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: deadcode
+spec:
+  replicas: 2   # dos copias: si una cae, la otra sigue atendiendo
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      securityContext:
+        runAsUser: 1000          # usuario "app" de nuestra imagen (Dockerfile)
+        runAsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: api
+          # Etiqueta INMUTABLE (sha-<commit>), nunca "latest": así se
+          # sabe exactamente qué versión corre. Imagen publicada por el CI.
+          image: ghcr.io/jjorge11/deadcode-service:sha-4990c1d
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: deadcode-config     # REDIS_URL, SANDBOX_MODE
+          env:
+            # Credenciales desde el Secret (no están en git).
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef: {name: postgres-credentials, key: POSTGRES_USER}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: postgres-credentials, key: POSTGRES_PASSWORD}
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef: {name: postgres-credentials, key: POSTGRES_DB}
+            # $(NOMBRE) usa variables definidas ARRIBA: la URL se arma
+            # sin escribir la contraseña en ningún archivo.
+            - name: DATABASE_URL
+              value: postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)
+          # "¿Listo?" -> /health revisa Postgres y Redis. Si fallan, este
+          # pod deja de RECIBIR tráfico (pero no se reinicia).
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 5
+            timeoutSeconds: 5
+          # "¿Vivo?" -> solo que el puerto responda. NO usa /health: si
+          # Postgres cayera, Kubernetes reiniciaría todas las APIs sin
+          # motivo (convirtiendo un problema en dos).
+          livenessProbe:
+            tcpSocket:
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {memory: 256Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}   # única carpeta escribible (temporal)

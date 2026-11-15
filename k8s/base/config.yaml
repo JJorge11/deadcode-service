@@ -1,0 +1,17 @@
+# ConfigMap: configuración que NO es secreta (como un .env sin
+# contraseñas). Las contraseñas van en el Secret "postgres-credentials".
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: deadcode-config
+  namespace: deadcode
+data:
+  # El Service "redis" se encuentra por su nombre, igual que en Compose.
+  REDIS_URL: redis://redis:6379/0
+
+  # ⚠️ TEMPORAL: en el clúster todavía no existe el sandbox de Kubernetes
+  # (etapa 4, paso 5), así que el worker analiza en su propio pod, SIN
+  # aislamiento. Aceptable solo porque Vulture LEE el código (no lo
+  # ejecuta). NO activar análisis que ejecuten código (coverage.py)
+  # hasta cambiar esto a "kubernetes".
+  SANDBOX_MODE: local
