@@ -42,16 +42,18 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   (worker real, solo Linux). En Linux: 15 pasan.
 - CI funcionando en GitHub Actions (.github/workflows/ci.yml): tests +
   build de la imagen + validación de Compose. Primer run verde (~1 min).
-- Etapa 3 en curso: job "publish" en el CI sube la imagen a GHCR
+- Etapa 3 COMPLETA: el CI publica la imagen en GHCR
   (ghcr.io/jjorge11/deadcode-service) con etiquetas sha-<commit> y
-  latest. Pendiente: primer push y verificar la imagen publicada.
-- Pendiente: README (se dejó para más adelante).
-- Recomendado antes de Kubernetes (etapa 4): restringir URLs a GitHub
-  (SSRF) y análisis real con Vulture en contenedor aislado.
-- Antes del análisis real: restringir repo_url a https://github.com/...
-  para evitar SSRF (que usen el servidor para llegar a URLs internas).
-- Pendiente más adelante: análisis real con Vulture dentro de un
-  contenedor aislado; migraciones con Alembic cuando cambie la tabla.
+  latest. Paquete público: se descarga sin login. Verificado: la imagen
+  descargada corre y /health responde ok.
+- Protección SSRF lista: POST /analyses solo acepta
+  https://github.com/<dueño>/<repo> (validation.py) y guarda la URL
+  normalizada. 52 tests pasan en Windows (38 de validación) + 1 saltado.
+- Próximo (antes de Kubernetes): análisis real con Vulture dentro de un
+  contenedor aislado. Ahí verificar también que el repo exista y sea
+  público (la validación de URL no lo comprueba).
+- Pendiente: README (se dejó para más adelante); migraciones con
+  Alembic cuando cambie la tabla.
 
 ## Decisiones
 <!-- Una línea por decisión: qué se eligió y por qué. -->
@@ -107,6 +109,16 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   Caché de capas con type=gha.
 - Probar en Linux sin CI: contenedor python:3.12-slim temporal en la
   red de Compose (POSTGRES_HOST=postgres, REDIS_HOST=redis).
+- SSRF: LISTA BLANCA (solo https://github.com/<dueño>/<repo>, regex
+  con fullmatch sobre toda la URL), no lista negra de IPs (siempre se
+  escapa algún truco, ej. 169.254.169.254 escrito como 2852039166).
+  Se rechazan usuario:clave@, puertos, ?query, #fragmento, rutas
+  extra, "." y ".." (los nombres se usarán como carpetas al clonar).
+- conftest: si Postgres no responde, pytest.exit con mensaje claro
+  (evita 50+ errores y ~2 min de espera).
+- Docker Desktop instalado por usuario en
+  %LOCALAPPDATA%\Programs\DockerDesktop (no en Program Files). Tras
+  reiniciar el PC hay que abrirlo antes de docker compose up.
 - En tests locales usar 127.0.0.1, NO "localhost": en Windows,
   localhost prueba primero IPv6 (::1) y pierde ~2 s por conexión.
 
@@ -114,11 +126,12 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
 - src/deadcode_service/main.py: API FastAPI (/health, POST /analyses,
   GET /analyses, GET /analyses/{id})
 - src/deadcode_service/db.py: tabla "analyses" y consultas SQL
+- src/deadcode_service/validation.py: validación de URLs (anti-SSRF)
 - src/deadcode_service/tasks.py: tareas que ejecuta el worker
 - src/deadcode_service/worker.py: worker RQ que escucha la cola
 - tests/conftest.py: preparación común (base de test, limpieza, cliente)
-- tests/test_*.py: tests de health, endpoints de análisis, tarea y
-  worker real (test_worker.py, solo Linux)
+- tests/test_*.py: tests de health, endpoints de análisis, tarea,
+  validación de URLs y worker real (test_worker.py, solo Linux)
 - .github/workflows/ci.yml: CI (tests + build de imagen + Compose) y
   publicación de la imagen en GHCR
 - src/deadcode_service/__init__.py: vacío (marca el paquete)
@@ -135,6 +148,8 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
 - Agregar dependencia: uv add <paquete>
 - Agregar dependencia de desarrollo: uv add --dev <paquete>
 - Construir imagen: docker build -t deadcode-service:dev .
+- Descargar la imagen publicada:
+  docker pull ghcr.io/jjorge11/deadcode-service:latest
 - Ejecutar contenedor: docker run --rm -p 8000:8000 deadcode-service:dev
 - Primera vez: copy .env.example .env (y cambiar la contraseña)
 - Levantar todo: docker compose up -d --build

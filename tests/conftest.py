@@ -46,6 +46,20 @@ def test_database():
     autouse=True: se aplica a todos sin tener que pedirlo.
     """
     admin_url = f"postgresql://{PG_USER}:{PG_PASSWORD}@{PG_HOST}:5432/{PG_ADMIN_DB}"
+
+    # Si Postgres no responde, detener TODO con un mensaje claro en vez
+    # de dejar que cada test falle por separado (lento y confuso).
+    try:
+        psycopg.connect(admin_url, connect_timeout=3).close()
+    except psycopg.OperationalError:
+        pytest.exit(
+            # Sin tildes ni signos: algunas terminales de Windows los
+            # muestran mal.
+            "Postgres no responde. Enciende Docker Desktop y ejecuta: "
+            "docker compose up -d",
+            returncode=1,
+        )
+
     # CREATE DATABASE no puede ir dentro de una transacción: autocommit.
     with psycopg.connect(admin_url, autocommit=True) as conn:
         exists = conn.execute(

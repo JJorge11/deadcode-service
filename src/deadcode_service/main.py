@@ -7,11 +7,12 @@ import psycopg
 import redis
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, Field, field_validator
 from rq import Queue
 
 from deadcode_service import db
 from deadcode_service.tasks import QUEUE_NAME, analyze_repo
+from deadcode_service.validation import MAX_URL_LENGTH, normalize_github_url
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -91,9 +92,21 @@ def health():
 
 
 class AnalysisRequest(BaseModel):
-    """Cuerpo del POST. HttpUrl valida que sea una URL real."""
+    """Cuerpo del POST. Solo acepta repos de GitHub (ver validation.py).
 
-    repo_url: HttpUrl
+    El validador corre ANTES de llegar al endpoint: una URL rechazada
+    (422) nunca toca la base de datos ni la cola.
+    """
+
+    repo_url: str = Field(
+        max_length=MAX_URL_LENGTH,
+        examples=["https://github.com/psf/requests"],
+    )
+
+    @field_validator("repo_url")
+    @classmethod
+    def must_be_github_repo(cls, value: str) -> str:
+        return normalize_github_url(value)  # devuelve la forma canónica
 
 
 def get_redis() -> redis.Redis:
@@ -109,7 +122,7 @@ def create_analysis(request: AnalysisRequest):
     202 = "Aceptado": recibido, pero se procesará después.
     """
     analysis_id = uuid.uuid4()  # identificador único al azar
-    repo_url = str(request.repo_url)
+    repo_url = request.repo_url  # ya validada y normalizada
 
     # 1) Primero la fila en Postgres: así existe antes de que un
     #    worker rápido intente actualizarla.
