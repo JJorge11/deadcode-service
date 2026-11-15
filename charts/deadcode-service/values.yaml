@@ -12,7 +12,7 @@ image:
   pullPolicy: IfNotPresent
 
 api:
-  replicas: 3              # dos copias: si una cae, la otra sigue
+  replicas: 2              # dos copias: si una cae, la otra sigue
   nodePort: 30080          # kind lo conecta con 127.0.0.1:8080
   resources:
     requests: {cpu: 100m, memory: 128Mi}
