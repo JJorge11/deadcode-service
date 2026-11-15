@@ -64,7 +64,7 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
      sandbox sin red, sin variables secretas, solo lectura, nobody,
      cap-drop ALL, límites; 0 sandboxes vivos al terminar; el portero
      bloquea imágenes/volúmenes/info (403) y la API no lo ve.
-- Etapa 4 (Kubernetes local) EN CURSO. Plan:
+- Etapa 4 (Kubernetes local) COMPLETA. Pasos:
   1. HECHO: kind v0.33, Helm v4.3, kubectl v1.36 (de Docker Desktop).
      Clúster "deadcode" (k8s v1.37) con k8s/kind-config.yaml: 1
      control-plane + 1 worker; puerto 30080 del clúster -> 127.0.0.1:8080.
@@ -80,8 +80,8 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
      ConfigMap "deadcode-config" (REDIS_URL, SANDBOX_MODE). Verificado:
      /health 200, análisis real de punta a punta, y 60/60 peticiones OK
      borrando un pod de la API en medio.
-     ⚠️ TEMPORAL: worker del clúster con SANDBOX_MODE=local (sin
-     aislamiento) hasta el paso 5. NO activar coverage.py antes.
+     (Entonces el worker usaba SANDBOX_MODE=local, sin
+     aislamiento; reemplazado por "kubernetes" en el paso 5.)
   4. HECHO: chart de Helm en charts/deadcode-service (k8s/base/
      eliminado: una sola fuente de verdad). Release "deadcode" en el
      namespace "deadcode". Migración: los selectores son INMUTABLES, así
@@ -132,8 +132,15 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
          revisiones 6-7): espía ya no llega a nada; itsdangerous OK en
          ~6,5 s (+2 s); borrando la NetworkPolicy a propósito el
          análisis falla cerrado en ~14 s; helm upgrade la recreó.
-         FALTA: commit -> CI -> image.tag = sha nuevo -> helm upgrade
-         (dejar de usar la imagen local "portero").
+         HECHO: commit 869245e -> CI verde -> image.tag sha-869245e ->
+         helm revisión 8 (--reset-values, sin la imagen local).
+         itsdangerous OK (21 hallazgos, ~7 s), 0 sandboxes vivos.
+- Etapa 4 COMPLETA. El modo "local" ya NO se usa en el clúster.
+  Actualizar la versión exige 2 commits (código -> CI publica sha ->
+  commit con el nuevo image.tag): la etapa 5 (ArgoCD) lo automatiza.
+- Pendiente de seguridad: no hay límite de procesos por pod en el
+  sandbox de K8s (podPidsLimit del kubelet, se configura al crear el
+  clúster en kind-config.yaml).
 - Pendiente después: nivel 2 (coverage.py), dashboard, README.
 - Pendiente: dashboard simple (el usuario tuvo dificultad usando /docs
   para consultar resultados: copiar ids y leer JSON es incómodo).

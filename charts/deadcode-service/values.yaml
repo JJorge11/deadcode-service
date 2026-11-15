@@ -8,7 +8,7 @@ image:
   repository: ghcr.io/jjorge11/deadcode-service
   # Etiqueta INMUTABLE (sha-<commit>), nunca "latest": así se sabe
   # exactamente qué versión corre. Para actualizar: cambiar esta línea.
-  tag: sha-0eedf3e
+  tag: sha-869245e
   pullPolicy: IfNotPresent
 
 api:
