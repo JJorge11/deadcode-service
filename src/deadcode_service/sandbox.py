@@ -155,6 +155,15 @@ def _kubectl(*args: str) -> list[str]:
     return ["kubectl", *args, "--namespace", SANDBOX_NAMESPACE, "--cache-dir", KUBECTL_CACHE_DIR]
 
 
+def _container_security() -> dict:
+    """Seguridad de CADA contenedor del pod (portero y análisis)."""
+    return {
+        "allowPrivilegeEscalation": False,
+        "readOnlyRootFilesystem": True,
+        "capabilities": {"drop": ["ALL"]},
+    }
+
+
 def build_pod_spec() -> dict:
     """El pod desechable: mismas protecciones que "docker run".
 
@@ -177,6 +186,23 @@ def build_pod_spec() -> dict:
                 "runAsGroup": 65534,
                 "seccompProfile": {"type": "RuntimeDefault"},
             },
+            # PORTERO: corre ANTES del análisis y solo termina bien si
+            # confirma que NO hay red. La NetworkPolicy tarda ~1 s en
+            # aplicarse a un pod nuevo; así el código ajeno nunca ve ese
+            # segundo con red. Si falla, el análisis no arranca.
+            "initContainers": [
+                {
+                    "name": "esperar-sin-red",
+                    "image": SANDBOX_IMAGE,
+                    "imagePullPolicy": "IfNotPresent",
+                    "command": ["python", "-m", "deadcode_service.wait_no_network"],
+                    "resources": {
+                        "requests": {"cpu": "50m", "memory": "64Mi"},
+                        "limits": {"cpu": "500m", "memory": "128Mi"},
+                    },
+                    "securityContext": _container_security(),
+                }
+            ],
             "containers": [
                 {
                     "name": "sandbox",
@@ -192,11 +218,7 @@ def build_pod_spec() -> dict:
                         "requests": {"cpu": "100m", "memory": "128Mi"},
                         "limits": {"cpu": CPU_LIMIT, "memory": K8S_MEMORY_LIMIT},
                     },
-                    "securityContext": {
-                        "allowPrivilegeEscalation": False,
-                        "readOnlyRootFilesystem": True,
-                        "capabilities": {"drop": ["ALL"]},
-                    },
+                    "securityContext": _container_security(),
                     "volumeMounts": [{"name": "tmp", "mountPath": "/tmp"}],
                 }
             ],
@@ -235,6 +257,10 @@ def _pod_failure_reason(pod_name: str) -> str | None:
     status = pod.get("status", {})
     if status.get("reason") == "DeadlineExceeded":
         return "DeadlineExceeded"
+    # El portero falló: no se confirmó "sin red" y el análisis no corrió.
+    for container in status.get("initContainerStatuses", []):
+        if container.get("state", {}).get("terminated", {}).get("exitCode", 0) != 0:
+            return "NetworkNotBlocked"
     for container in status.get("containerStatuses", []):
         reason = container.get("state", {}).get("terminated", {}).get("reason")
         if reason:

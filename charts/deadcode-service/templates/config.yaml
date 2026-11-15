@@ -7,7 +7,6 @@ metadata:
     {{- include "deadcode.labels" (dict "root" . "component" "config") | nindent 4 }}
 data:
   REDIS_URL: redis://redis:6379/0
-  # ⚠️ "local" es TEMPORAL (ver values.yaml, sección sandbox).
   SANDBOX_MODE: {{ .Values.sandbox.mode | quote }}
   # Modo "kubernetes": el sandbox usa la MISMA imagen que la app (ya
   # contiene el analizador) y se crea en el namespace aislado.

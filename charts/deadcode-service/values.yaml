@@ -8,7 +8,7 @@ image:
   repository: ghcr.io/jjorge11/deadcode-service
   # Etiqueta INMUTABLE (sha-<commit>), nunca "latest": así se sabe
   # exactamente qué versión corre. Para actualizar: cambiar esta línea.
-  tag: sha-c295ff8
+  tag: sha-0eedf3e
   pullPolicy: IfNotPresent
 
 api:
@@ -25,11 +25,11 @@ worker:
     limits: {memory: 768Mi}
   tmpSizeLimit: 1Gi        # espacio para extraer repos durante el análisis
 
-# ⚠️ TEMPORAL: "local" = el worker analiza en su propio pod, SIN
-# aislamiento (aceptable solo con Vulture, que no ejecuta código).
-# Pasará a "kubernetes" en el paso 5 (un pod desechable por análisis).
+# "kubernetes" = un pod desechable por análisis, en una zona aislada
+# (ver templates/sandbox.yaml). "local" (sin aislamiento) es solo para
+# tests y Windows: NUNCA en el clúster.
 sandbox:
-  mode: local
+  mode: kubernetes
   namespace: deadcode-sandboxes   # zona aislada (ver templates/sandbox.yaml)
   maxPods: 4                      # sandboxes simultáneos como máximo
   quotaMemory: 2Gi                # memoria total de todos los sandboxes

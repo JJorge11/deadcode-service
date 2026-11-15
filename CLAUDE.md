@@ -113,8 +113,27 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
          devuelve 137 TANTO por OOMKilled COMO por DeadlineExceeded ->
          se consulta el motivo con "kubectl get pod". Sin
          terminationGracePeriodSeconds: 0 el plazo tardaba 30 s más.
-     5.3 Publicar imagen, helm upgrade con mode=kubernetes y prueba de
-         punta a punta (incluye: sandbox sin red, timeout, memoria).
+     5.3 EN CURSO: imagen sha-0eedf3e publicada (CI verde), helm
+         revisión 5 con mode=kubernetes (values.yaml SIN commit aún).
+         Análisis real de pallets/itsdangerous OK (21 hallazgos, ~5 s,
+         pod creado y borrado). Espía dentro del sandbox: nobody, sin
+         token, disco solo lectura OK; PERO ⚠️ CARRERA DE RED: durante
+         ~1 s tras nacer el pod, kindnet aún no aplica la NetworkPolicy
+         (conectó a Postgres, API de K8s e internet; desde t=1,5 s todo
+         bloqueado). Riesgo HOY bajo (Vulture no ejecuta el código del
+         repo, solo lo lee), ALTO para coverage.py.
+         ARREGLADO (sin commit aún): initContainer "esperar-sin-red"
+         (wait_no_network.py): intenta conectar a la API de K8s y a
+         1.1.1.1; solo termina OK si NADIE responde ("rechazada" cuenta
+         como red abierta); tras 20 intentos falla y el análisis NO
+         corre (motivo NetworkNotBlocked en logs; usuario ve "Error
+         inesperado"). 135 tests pasan (+1 saltado). Probado en el
+         clúster con imagen local (kind load, tag "portero", helm
+         revisiones 6-7): espía ya no llega a nada; itsdangerous OK en
+         ~6,5 s (+2 s); borrando la NetworkPolicy a propósito el
+         análisis falla cerrado en ~14 s; helm upgrade la recreó.
+         FALTA: commit -> CI -> image.tag = sha nuevo -> helm upgrade
+         (dejar de usar la imagen local "portero").
 - Pendiente después: nivel 2 (coverage.py), dashboard, README.
 - Pendiente: dashboard simple (el usuario tuvo dificultad usando /docs
   para consultar resultados: copiar ids y leer JSON es incómodo).
@@ -324,6 +343,8 @@ positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
   (lado worker) con todas las protecciones
 - src/deadcode_service/sandbox_main.py: programa DENTRO del sandbox
   (stdin .tar.gz -> stdout JSON)
+- src/deadcode_service/wait_no_network.py: "portero" (initContainer)
+  del sandbox en K8s: confirma que no hay red antes del análisis
 - src/deadcode_service/worker.py: worker RQ que escucha la cola
 - tests/conftest.py: preparación común (base de test, limpieza, cliente)
 - tests/test_*.py: tests de health, endpoints de análisis, tarea,
@@ -379,6 +400,9 @@ positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
   / logs: kubectl logs -n deadcode deploy/worker -f
   / permisos del worker: kubectl auth can-i create pods -n deadcode-sandboxes --as=system:serviceaccount:deadcode:worker
   / sandboxes vivos: kubectl get pods -n deadcode-sandboxes
+  / probar una imagen local SIN publicarla:
+    docker build -t deadcode-service:prueba . ; kind load docker-image deadcode-service:prueba --name deadcode
+    helm upgrade deadcode charts/deadcode-service -n deadcode --set image.repository=deadcode-service --set image.tag=prueba --wait
   / si "helm" o "kind" no se reconocen: abrir una terminal nueva (el
     PATH se actualizó al instalarlos con winget)
 - Apagar (conserva datos): docker compose down

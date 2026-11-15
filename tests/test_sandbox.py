@@ -166,6 +166,29 @@ def test_pod_cumple_pod_security_restricted():
     assert container["stdin"] is True and container["stdinOnce"] is True
 
 
+def test_pod_tiene_portero_que_confirma_sin_red():
+    spec = sandbox.build_pod_spec()["spec"]
+    [portero] = spec["initContainers"]
+    [container] = spec["containers"]
+
+    assert portero["command"] == ["python", "-m", "deadcode_service.wait_no_network"]
+    assert portero["image"] == container["image"]
+    # Mismas protecciones que el análisis, y con límites (lo exige la cuota).
+    assert portero["securityContext"] == container["securityContext"]
+    assert "memory" in portero["resources"]["limits"] and "cpu" in portero["resources"]["limits"]
+    assert "env" not in portero and "volumeMounts" not in portero
+
+
+def test_kubernetes_portero_fallido_no_es_culpa_del_repo(fake_kubectl):
+    status = {"initContainerStatuses": [{"state": {"terminated": {"exitCode": 1, "reason": "Error"}}}]}
+    calls = fake_kubectl(returncode=1, pod_status=status)
+
+    with pytest.raises(sandbox.SandboxError, match="NetworkNotBlocked"):
+        sandbox.run(TARBALL)
+
+    _assert_pod_deleted(calls)
+
+
 def test_comando_kubectl_run():
     command = sandbox.build_kubectl_command("sandbox-test")
 
