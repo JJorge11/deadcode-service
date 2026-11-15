@@ -141,6 +141,25 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
 - Pendiente de seguridad: no hay límite de procesos por pod en el
   sandbox de K8s (podPidsLimit del kubelet, se configura al crear el
   clúster en kind-config.yaml).
+- Etapa 5 (GitOps con ArgoCD) EN CURSO. Plan:
+  1. HECHO: ArgoCD v3.6.1 instalado con el manifiesto oficial
+     (kubectl apply --server-side) en el namespace "argocd" (7 pods).
+     Web por port-forward (https://127.0.0.1:8443), usuario admin,
+     contraseña inicial en el Secret argocd-initial-admin-secret
+     (NO va en git ni se muestra en el chat).
+  2. HECHO: Application "deadcode" (argocd/deadcode.yaml, aplicada una
+     vez con kubectl) vigila charts/deadcode-service en main, con
+     automated selfHeal + prune, SIN finalizer (borrar la Application
+     no borra la app). Primero sin automático: los 15 recursos ya
+     estaban Synced (cero sorpresas). Sync manual -> anotación
+     argocd.argoproj.io/tracking-id en cada recurso; sin reinicios.
+     Helm "olvidó" el release borrando SOLO sus Secrets
+     (owner=helm,name=deadcode; revisiones 1-8): pods, PVC, Secret de
+     Postgres y los 7 análisis intactos. Desde aquí NO usar helm
+     upgrade/rollback en el clúster: todo cambio es un commit.
+  3. Demostraciones: selfHeal (borrar algo a mano y que vuelva) y
+     cambio solo con commit.
+  4. El CI actualiza image.tag solo (fin de los 2 commits manuales).
 - Pendiente después: nivel 2 (coverage.py), dashboard, README.
 - Pendiente: dashboard simple (el usuario tuvo dificultad usando /docs
   para consultar resultados: copiar ids y leer JSON es incómodo).
@@ -367,6 +386,8 @@ positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
 - docker-compose.yml: API + worker + Postgres + Redis + docker-proxy
   (portero del socket) para desarrollo
 - k8s/kind-config.yaml: definición del clúster local (kind)
+- argocd/deadcode.yaml: Application de ArgoCD (qué chart vigilar y dónde
+  desplegarlo; se aplica una vez a mano)
 - charts/deadcode-service/: chart de Helm (Chart.yaml, values.yaml,
   templates/ con config, api, worker, postgres, redis, sandbox y
   _helpers.tpl)
@@ -398,7 +419,12 @@ positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
   kubectl create namespace deadcode
   $pw = -join ((48..57)+(65..90)+(97..122) | Get-Random -Count 24 | % {[char]$_})
   kubectl create secret generic postgres-credentials -n deadcode --from-literal=POSTGRES_USER=deadcode --from-literal=POSTGRES_DB=deadcode --from-literal=POSTGRES_PASSWORD=$pw
-- K8s, instalar/actualizar: helm upgrade --install deadcode charts/deadcode-service -n deadcode --wait
+- K8s CON ArgoCD (actual): desplegar = commit + push a main (ArgoCD
+  revisa cada ~3 min); volver atrás = git revert. Estado:
+  kubectl get application deadcode -n argocd
+  / bootstrap (solo la primera vez): kubectl apply -f argocd/deadcode.yaml
+- K8s SIN ArgoCD (antes de la etapa 5, o para probar imágenes locales
+  quitando antes la Application): helm upgrade --install deadcode charts/deadcode-service -n deadcode --wait
   / historial: helm history deadcode -n deadcode
   / volver atrás: helm rollback deadcode <revisión> -n deadcode
   / revisar el chart: helm lint charts/deadcode-service --strict
@@ -407,7 +433,12 @@ positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
   / logs: kubectl logs -n deadcode deploy/worker -f
   / permisos del worker: kubectl auth can-i create pods -n deadcode-sandboxes --as=system:serviceaccount:deadcode:worker
   / sandboxes vivos: kubectl get pods -n deadcode-sandboxes
-  / probar una imagen local SIN publicarla:
+  / ArgoCD, instalar: kubectl create namespace argocd ; kubectl apply -n argocd --server-side --force-conflicts -f https://raw.githubusercontent.com/argoproj/argo-cd/v3.6.1/manifests/install.yaml
+  / ArgoCD, abrir la web (dejar la terminal abierta): kubectl port-forward -n argocd svc/argocd-server 8443:443  -> https://127.0.0.1:8443
+  / ArgoCD, contraseña de admin (PowerShell):
+    [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String((kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath='{.data.password}')))
+  / probar una imagen local SIN publicarla (OJO: con ArgoCD activo, selfHeal
+    lo revertiría; antes quitar "automated" de la Application):
     docker build -t deadcode-service:prueba . ; kind load docker-image deadcode-service:prueba --name deadcode
     helm upgrade deadcode charts/deadcode-service -n deadcode --set image.repository=deadcode-service --set image.tag=prueba --wait
   / si "helm" o "kind" no se reconocen: abrir una terminal nueva (el

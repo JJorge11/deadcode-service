@@ -1,0 +1,33 @@
+# Application de ArgoCD: "vigila el chart en git y aplícalo al clúster".
+# Se aplica UNA vez a mano (kubectl apply -f argocd/deadcode.yaml);
+# desde ahí, el despliegue se cambia SOLO con commits.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: deadcode
+  namespace: argocd
+  # SIN el finalizer "resources-finalizer.argocd.argoproj.io" a propósito:
+  # con él, borrar esta Application borraría TODA la app (y Postgres).
+spec:
+  project: default
+
+  # QUÉ desplegar: el chart de Helm de este repo, rama main.
+  source:
+    repoURL: https://github.com/JJorge11/deadcode-service.git
+    targetRevision: main
+    path: charts/deadcode-service
+    helm:
+      releaseName: deadcode   # mismo nombre que con Helm: mismas etiquetas
+
+  # DÓNDE: este mismo clúster, namespace "deadcode".
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: deadcode
+
+  # CÓMO: automático. ArgoCD revisa git (cada ~3 min) y aplica cambios.
+  syncPolicy:
+    automated:
+      selfHeal: true   # si alguien cambia algo A MANO, se vuelve a lo de git
+      prune: true      # si algo se BORRA del chart en git, se borra del clúster
+                       # (solo lo que ArgoCD maneja: el PVC de Postgres y el
+                       # Secret de la contraseña no están en el chart)
