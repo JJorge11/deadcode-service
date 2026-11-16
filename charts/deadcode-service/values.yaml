@@ -9,7 +9,7 @@ image:
   # Etiqueta INMUTABLE (sha-<commit>), nunca "latest": así se sabe
   # exactamente qué versión corre. La ACTUALIZA EL CI (job "deploy")
   # en cada push a main; ArgoCD despliega ese commit. No editar a mano.
-  tag: sha-70e6fa5
+  tag: sha-313d508
   pullPolicy: IfNotPresent
 
 api:
