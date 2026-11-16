@@ -21,7 +21,7 @@ REPO = "https://github.com/psf/requests"
 @pytest.mark.skipif(sys.platform == "win32", reason="RQ usa fork: solo Linux")
 def test_worker_real_procesa_el_analisis_de_punta_a_punta(monkeypatch):
     # Análisis instantáneo. Con fork, el proceso hijo hereda este cambio.
-    monkeypatch.setattr(tasks, "_run_analysis", lambda repo_url: {"dead_code": []})
+    monkeypatch.setattr(tasks, "_run_analysis", lambda repo_url, dynamic=False: {"dead_code": []})
 
     # El TestClient usa un hilo interno. Lo cerramos (fin del "with")
     # ANTES de arrancar el worker: hacer fork con hilos vivos puede

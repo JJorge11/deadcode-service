@@ -731,6 +731,11 @@ cambiar el proyecto) con itsdangerous, click, requests y este repo.
 - Ver estado / logs: docker compose ps / docker compose logs -f api
   (o -f worker)
 - Correr tests (requiere docker compose up -d): uv run pytest
+- ⚠️ Antes de push, correr TODA la suite en Linux (en Windows se saltan
+  4 tests, ej. el del worker real; pasó: CI rojo en 2626c86). Git Bash,
+  con Compose arriba y la imagen deadcode-service:dev construida:
+  export MSYS_NO_PATHCONV=1; net=$(docker network ls --format '{{.Name}}' | grep deadcode-service_default)
+  docker run --rm --network "$net" --env-file .env -e POSTGRES_HOST=postgres -e REDIS_HOST=redis -e UV_PROJECT_ENVIRONMENT=/tmp/venv -e UV_CACHE_DIR=/tmp/uvcache -v "$PWD:/w:ro" -w /w --entrypoint sh deadcode-service:dev -c 'uv sync --frozen -q; /tmp/venv/bin/python -m pytest -q -p no:cacheprovider'
 - Probar un análisis: abrir http://127.0.0.1:8000/docs, POST /analyses
 - Ver la tabla en Postgres:
   docker compose exec postgres psql -U deadcode -d deadcode -c "SELECT id, repo_url, status FROM analyses"
