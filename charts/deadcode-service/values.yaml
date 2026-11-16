@@ -36,6 +36,13 @@ sandbox:
   quotaMemory: 2Gi                # memoria total de todos los sandboxes
   quotaCpu: "4"
 
+# Métricas para Prometheus (etapa 6). Requiere kube-prometheus-stack
+# instalado (argocd/monitoring.yaml); si no, poner enabled: false.
+metrics:
+  serviceMonitor:
+    enabled: true
+    interval: 15s                 # cada cuánto Prometheus lee /metrics
+
 postgres:
   image: postgres:17-alpine
   storage: 1Gi

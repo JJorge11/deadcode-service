@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, field_validator
 from rq import Queue
 
 from deadcode_service import db
+from deadcode_service.metrics import setup_metrics
 from deadcode_service.tasks import QUEUE_NAME, analyze_repo
 from deadcode_service.validation import MAX_URL_LENGTH, normalize_github_url
 
@@ -34,6 +35,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="deadcode-service", lifespan=lifespan)
+setup_metrics(app)  # GET /metrics para Prometheus (ver metrics.py)
 
 
 # ---------------------------------------------------------------------

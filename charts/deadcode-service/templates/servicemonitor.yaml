@@ -1,0 +1,21 @@
+{{- if .Values.metrics.serviceMonitor.enabled }}
+# ServiceMonitor: le dice a Prometheus "mide el Service api en /metrics".
+# Es un tipo de objeto NUEVO (CRD) que instala kube-prometheus-stack
+# (argocd/monitoring.yaml): sin él instalado, este objeto no se puede crear.
+# Prometheus mide CADA pod de la API por separado (2 réplicas = 2 targets);
+# en Grafana se suman con sum().
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: api
+  labels:
+    {{- include "deadcode.labels" (dict "root" . "component" "api") | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "deadcode.selector" (dict "root" . "component" "api") | nindent 6 }}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ .Values.metrics.serviceMonitor.interval }}
+{{- end }}

@@ -182,7 +182,7 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   ArgoCD; 2) métricas propias en la API; 3) métricas de análisis (cola,
   duración, fallos por motivo); 4) dashboard propio en git; 5) 1-2
   alertas (sandbox huérfano, disco de Postgres).
-  1. HECHO (sin commit): Application "monitoring" (argocd/monitoring.yaml)
+  1. HECHO (commit cca5546): Application "monitoring" (argocd/monitoring.yaml)
      con el chart oficial kube-prometheus-stack 93.3.0 (versión fija),
      namespace "monitoring", Secret "grafana-admin" creado por comando.
      Apagados etcd/scheduler/controller-manager/kube-proxy (en kind
@@ -196,16 +196,31 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
      falló (kubectl run: timeout) y otro tardó 84 s. Arreglo: límite
      768Mi (usa ~580), base de Grafana en RAM (inMemory) y startupProbe
      de 5 min. Lección: MEDIR la memoria real antes de fijar límites.
-     Tras arreglarlo: análisis OK (21 hallazgos) en ~21 s (antes ~7 s;
-     el disco aún se recuperaba: volver a medir).
+     Tras arreglarlo: análisis OK (21 hallazgos) en ~21 s mientras el
+     disco se recuperaba; tras el deploy de cca5546, ~7,8 s (normal).
   - BUG encontrado: sandbox._delete_pod no revisaba el código de salida
     de "kubectl delete" (subprocess.run NO lanza error si el comando
     falla): con la API caída, el pod quedó huérfano SIN log (pasó con
-    sandbox-67cfe200cec1; borrado a mano). ARREGLADO (sin commit):
+    sandbox-67cfe200cec1; borrado a mano). ARREGLADO (cca5546):
     revisa returncode, 3 intentos con 2 s de pausa y, si todos fallan,
     log de aviso con el motivo; nunca lanza error. 137 tests pasan
     (+1 saltado); mutante "ignorar el código de salida" detectado.
     Red de seguridad pendiente: alerta de sandbox huérfano (paso 5).
+  2. HECHO (sin commit; falta verlo en el clúster): métricas de la API
+     con prometheus_client (metrics.py): Counter
+     deadcode_http_requests_total{method,route,status} y Histogram
+     deadcode_http_request_duration_seconds{method,route}, medidos en
+     un middleware; GET /metrics oculto en /docs y no se mide a sí
+     mismo. route = PLANTILLA (/analyses/{analysis_id}), nunca la URL
+     real; rutas inexistentes = "sin_ruta" (evita "explosión de
+     cardinalidad": una serie por cada id o URL de robot). Un solo
+     proceso uvicorn: no hace falta el modo multiproceso. Chart: puerto
+     del Service con nombre "http" + templates/servicemonitor.yaml
+     (metrics.serviceMonitor.enabled/interval 15s). 144 tests pasan
+     (+1 saltado); mutante "URL real como etiqueta" detectado.
+- Reinicio del PC: Docker Desktop NO arranca solo. Abrirlo -> el
+  clúster kind vuelve solo (~1-2 min, verificado) -> Compose NO
+  (docker compose up -d). Los datos de Postgres sobreviven.
 - Pendiente después: nivel 2 (coverage.py), dashboard, README.
 - Pendiente: dashboard simple (el usuario tuvo dificultad usando /docs
   para consultar resultados: copiar ids y leer JSON es incómodo).
@@ -418,6 +433,8 @@ positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
 - src/deadcode_service/wait_no_network.py: "portero" (initContainer)
   del sandbox en K8s: confirma que no hay red antes del análisis
 - src/deadcode_service/worker.py: worker RQ que escucha la cola
+- src/deadcode_service/metrics.py: métricas para Prometheus (GET
+  /metrics + middleware que cuenta y mide cada petición)
 - tests/conftest.py: preparación común (base de test, limpieza, cliente)
 - tests/test_*.py: tests de health, endpoints de análisis, tarea,
   validación de URLs, descarga, analizador y worker real
