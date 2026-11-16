@@ -298,7 +298,10 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
 - Reinicio del PC: Docker Desktop NO arranca solo. Abrirlo -> el
   clúster kind vuelve solo (~1-2 min, verificado) -> Compose NO
   (docker compose up -d). Los datos de Postgres sobreviven.
-- Pendiente después: nivel 2 (coverage.py), dashboard, README.
+- Nivel 2 (coverage.py) EN CURSO. Paso 1 (explorar a mano) HECHO: ver
+  "Aprendizajes de coverage.py". Siguiente: paso 2 (dependencias con la
+  opción A: pod de descarga con internet pero sin red interna).
+- Pendiente después: dashboard, README.
 - Pendiente: dashboard simple (el usuario tuvo dificultad usando /docs
   para consultar resultados: copiar ids y leer JSON es incómodo).
 - Pendiente: README (se dejó para más adelante); migraciones con
@@ -490,6 +493,44 @@ positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
 - Contenedor de análisis usado en la exploración: --user 65534,
   --cap-drop ALL, --security-opt no-new-privileges, --read-only,
   --tmpfs /tmp, sin volúmenes; tarfile con filter="data".
+
+## Aprendizajes de coverage.py (exploración del nivel 2)
+Probado a mano (contenedores desechables, scripts en el scratchpad, sin
+cambiar el proyecto) con itsdangerous, click, requests y este repo.
+- Flujo en 2 fases que FUNCIONA: (1) con red: leer pyproject.toml con
+  tomllib (sin ejecutar nada) y `pip download --only-binary=:all:`
+  (solo wheels: no ejecuta código del repo); (2) SIN red, nobody, solo
+  lectura: venv en /tmp, `pip install --no-index --find-links`, repo
+  instalado con `pip install -e .` y `coverage run --source=src -m pytest`.
+- Dependencias de test: estándar moderno = [project.dependencies] +
+  [dependency-groups] (grupo "tests"/"test"/"dev"; puede tener
+  {include-group}). "requests[socks]" dentro de requests = referencia a
+  sí mismo -> usar sus extras. Repos solo con requirements.txt: no
+  soportados aún (y esos archivos admiten trucos: --index-url, -e, URLs).
+- PYTHONPATH=src NO basta: click usa importlib.metadata (pide su propia
+  versión) -> hay que instalar el repo; su empaquetador
+  (build-system.requires: flit_core, setuptools, uv_build) se descarga
+  en la fase 1 como wheel.
+- Resultados: itsdangerous 297 OK, 97,1%; click 2604 OK + 24 fallan
+  (piden el programa "less"), 85,9%; requests 615 OK + 4 fallan (sin
+  red), 87,9%, pero 86 s de tests (más que el plazo actual de 120 s
+  contando todo); este repo: 0% (pide Postgres: KeyError POSTGRES_USER).
+  Tests que fallan NO impiden medir: la cobertura igual sirve.
+- Tiempos: descarga 6-24 s, instalar 8-14 s, wheels 2-18 MB.
+- ⚠️ TRAMPA del cruce: la línea de un def/import/"x = 1" SIEMPRE se
+  ejecuta al importar el módulo. Para funciones/métodos hay que mirar el
+  CUERPO (ast: body[0].lineno .. end_lineno). Para imports, variables y
+  atributos coverage NO puede opinar (ejecutar no es leer).
+- El cruce SÍ aporta: click _wrap_chunks (Vulture "high") se ejecutó
+  -> sobrescribe un método de textwrap y lo llama la librería estándar
+  (falso positivo); requests MockRequest.get_full_url & co. los llama
+  http.cookiejar (falsos positivos); requests _find "high" nunca se
+  ejecutó y nadie lo llama (muerto confirmado). En click/requests
+  coverage opinó sobre ~11-22 de 137/88 hallazgos (solo funciones y
+  métodos de src/); el resto: "no aplica" o fuera de src.
+- Seguridad de la fase 1: un requisito puede ser una URL ("pkg @
+  https://...") -> pip download la visitaría: el pod de descarga NO debe
+  ver la red interna del clúster (solo internet) -> confirma la opción A.
 
 ## Estructura
 - src/deadcode_service/main.py: API FastAPI (/health, POST /analyses,
