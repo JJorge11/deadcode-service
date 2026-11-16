@@ -13,6 +13,11 @@ cada análisis, un contenedor nuevo:
 
 El worker le pasa el .tar.gz por stdin y recibe el JSON por stdout.
 
+Nivel 2 (coverage.py): download_dependencies() lanza OTRO pod, el de
+DESCARGA, que sí tiene internet (solo PyPI; nunca la red interna) pero
+no ejecuta nada del repo: lee su pyproject.toml y baja las wheels. Ver
+downloader_main.py y la NetworkPolicy "downloader-internet".
+
 Modos (variable SANDBOX_MODE):
   - "docker":     "docker run" (Docker Compose).
   - "kubernetes": un POD desechable en el namespace de sandboxes, con
@@ -24,14 +29,20 @@ Modos (variable SANDBOX_MODE):
                   para tests y desarrollo en Windows.
 """
 
+import io
 import json
 import logging
 import os
 import subprocess
+import tarfile
+import tempfile
 import time
 import uuid
+from pathlib import Path
 
-from deadcode_service import sandbox_main
+from deadcode_service import coverage_main, downloader_main, sandbox_main
+from deadcode_service.coverage_main import CoverageError
+from deadcode_service.dependencies import DependencyError
 from deadcode_service.errors import AnalysisError
 
 logger = logging.getLogger(__name__)
@@ -60,6 +71,21 @@ KUBECTL_CACHE_DIR = "/tmp/.kube-cache"
 # (Pasó de verdad: con la API caída unos segundos, un pod quedó huérfano.)
 DELETE_ATTEMPTS = 3
 DELETE_RETRY_SECONDS = 2
+
+# Pod de descarga (nivel 2). pip tiene 180 s; el resto es margen para
+# arrancar Python y armar el .tar de salida.
+DOWNLOAD_TIMEOUT_SECONDS = 240
+# Las wheels (máx. 150 MB) se guardan en /tmp, que está EN MEMORIA, y
+# además se copian al .tar de salida: por eso más memoria que el análisis.
+K8S_DOWNLOAD_MEMORY_LIMIT = "768Mi"
+K8S_DOWNLOAD_TMP_SIZE = "256Mi"
+
+# Pod de tests (nivel 2, coverage.py). Plazo total del pod: instalar
+# (~20 s), tests (máx. 180 s), informe y margen. Su /tmp va en DISCO: el
+# repo + wheels + entorno instalado pesan cientos de MB.
+COVERAGE_TIMEOUT_SECONDS = 360
+K8S_COVERAGE_MEMORY_LIMIT = "1Gi"
+K8S_COVERAGE_TMP_SIZE = "2Gi"
 
 
 class AnalysisTimeoutError(AnalysisError):
@@ -170,20 +196,70 @@ def _container_security() -> dict:
 
 
 def build_pod_spec() -> dict:
-    """El pod desechable: mismas protecciones que "docker run".
+    """El pod de ANÁLISIS: mismas protecciones que "docker run".
 
     El namespace además RECHAZA cualquier pod que no las cumpla (Pod
     Security "restricted"), y su NetworkPolicy le quita la red.
     """
+    return _pod_spec(
+        role="analisis",
+        gate=("esperar-sin-red", []),
+        container=("sandbox", "deadcode_service.sandbox_main"),
+        deadline=TIMEOUT_SECONDS,
+        memory=K8S_MEMORY_LIMIT,
+        tmp_size=K8S_TMP_SIZE,
+    )
+
+
+def build_download_pod_spec() -> dict:
+    """El pod de DESCARGA (nivel 2): mismas protecciones, pero su etiqueta
+    deadcode.role=downloader activa la NetworkPolicy "downloader-internet"
+    (internet sí, red interna no). Su portero solo exige que la red
+    INTERNA esté bloqueada antes de empezar."""
+    return _pod_spec(
+        role="downloader",
+        gate=("esperar-sin-red-interna", ["--solo-red-interna"]),
+        container=("descarga", "deadcode_service.downloader_main"),
+        deadline=DOWNLOAD_TIMEOUT_SECONDS,
+        memory=K8S_DOWNLOAD_MEMORY_LIMIT,
+        tmp_size=K8S_DOWNLOAD_TMP_SIZE,
+    )
+
+
+def build_coverage_pod_spec() -> dict:
+    """El pod de TESTS (nivel 2): ejecuta código del repo, así que va SIN
+    red (mismo portero que el análisis; su etiqueta no abre internet).
+    /tmp en disco, no en memoria."""
+    return _pod_spec(
+        role="tests",
+        gate=("esperar-sin-red", []),
+        container=("tests", "deadcode_service.coverage_main"),
+        deadline=COVERAGE_TIMEOUT_SECONDS,
+        memory=K8S_COVERAGE_MEMORY_LIMIT,
+        tmp_size=K8S_COVERAGE_TMP_SIZE,
+        tmp_in_memory=False,
+    )
+
+
+def _pod_spec(
+    *, role: str, gate: tuple[str, list[str]], container: tuple[str, str],
+    deadline: int, memory: str, tmp_size: str, tmp_in_memory: bool = True,
+) -> dict:
+    """Lo común de los pods desechables."""
+    gate_name, gate_args = gate
+    container_name, module = container
+    tmp_volume = {"sizeLimit": tmp_size}
+    if tmp_in_memory:
+        tmp_volume["medium"] = "Memory"
     return {
         "apiVersion": "v1",
-        "metadata": {"labels": {"deadcode.sandbox": "true"}},
+        "metadata": {"labels": {"deadcode.sandbox": "true", "deadcode.role": role}},
         "spec": {
             "serviceAccountName": "sandbox",
             "automountServiceAccountToken": False,  # sin credenciales del clúster
             "enableServiceLinks": False,  # sin variables con direcciones de servicios
             "restartPolicy": "Never",  # si falla, NO reintentar código ajeno
-            "activeDeadlineSeconds": TIMEOUT_SECONDS,  # Kubernetes lo mata al vencer
+            "activeDeadlineSeconds": deadline,  # Kubernetes lo mata al vencer
             "terminationGracePeriodSeconds": 0,  # matar de inmediato (sin esperar 30 s)
             "securityContext": {
                 "runAsNonRoot": True,
@@ -197,10 +273,10 @@ def build_pod_spec() -> dict:
             # segundo con red. Si falla, el análisis no arranca.
             "initContainers": [
                 {
-                    "name": "esperar-sin-red",
+                    "name": gate_name,
                     "image": SANDBOX_IMAGE,
                     "imagePullPolicy": "IfNotPresent",
-                    "command": ["python", "-m", "deadcode_service.wait_no_network"],
+                    "command": ["python", "-m", "deadcode_service.wait_no_network", *gate_args],
                     "resources": {
                         "requests": {"cpu": "50m", "memory": "64Mi"},
                         "limits": {"cpu": "500m", "memory": "128Mi"},
@@ -210,38 +286,39 @@ def build_pod_spec() -> dict:
             ],
             "containers": [
                 {
-                    "name": "sandbox",
+                    "name": container_name,
                     "image": SANDBOX_IMAGE,
                     # El nodo (no el pod) descarga la imagen si falta: la
                     # NetworkPolicy no lo impide. La etiqueta sha-<commit>
                     # es inmutable, así que no hay sorpresas.
                     "imagePullPolicy": "IfNotPresent",
-                    "command": ["python", "-m", "deadcode_service.sandbox_main"],
+                    "command": ["python", "-m", module],
                     "stdin": True,  # recibe el .tar.gz por stdin...
                     "stdinOnce": True,  # ...una sola vez
                     "resources": {
                         "requests": {"cpu": "100m", "memory": "128Mi"},
-                        "limits": {"cpu": CPU_LIMIT, "memory": K8S_MEMORY_LIMIT},
+                        "limits": {"cpu": CPU_LIMIT, "memory": memory},
                     },
                     "securityContext": _container_security(),
                     "volumeMounts": [{"name": "tmp", "mountPath": "/tmp"}],
                 }
             ],
             # /tmp en memoria (cuenta dentro del límite de memoria).
-            "volumes": [{"name": "tmp", "emptyDir": {"medium": "Memory", "sizeLimit": K8S_TMP_SIZE}}],
+            # /tmp: en memoria (cuenta en el límite de memoria) o en disco.
+            "volumes": [{"name": "tmp", "emptyDir": tmp_volume}],
         },
     }
 
 
-def build_kubectl_command(pod_name: str) -> list[str]:
+def build_kubectl_command(pod_name: str, spec: dict | None = None) -> list[str]:
     """"kubectl run -i": crea el pod, le conecta stdin/stdout y espera."""
     return _kubectl(
         "run", pod_name,
         "--image", SANDBOX_IMAGE,  # obligatorio, pero manda el de --overrides
         "--restart", "Never",
         "-i",                      # pasarle nuestro stdin (el .tar.gz)
-        "-q",                      # sin mensajes extra: stdout = solo el JSON
-        "--overrides", json.dumps(build_pod_spec()),
+        "-q",                      # sin mensajes extra: stdout = solo la respuesta
+        "--overrides", json.dumps(spec or build_pod_spec()),
     )
 
 
@@ -303,28 +380,118 @@ def _delete_pod(pod_name: str) -> bool:
     return False
 
 
-def _run_in_kubernetes(tarball: bytes) -> dict:
-    name = f"sandbox-{uuid.uuid4().hex[:12]}"
+def _run_pod(
+    prefix: str, spec: dict, data: bytes, deadline: int,
+    timeout_error: Exception, memory_error: Exception,
+) -> bytes:
+    """Crea un pod desechable, le pasa `data` por stdin y devuelve su
+    stdout. Traduce los fallos y SIEMPRE borra el pod al final."""
+    name = f"{prefix}-{uuid.uuid4().hex[:12]}"
     try:
         try:
             proc = subprocess.run(
-                build_kubectl_command(name),
-                input=tarball,
+                build_kubectl_command(name, spec),
+                input=data,
                 capture_output=True,
-                timeout=TIMEOUT_SECONDS + K8S_STARTUP_SECONDS,
+                timeout=deadline + K8S_STARTUP_SECONDS,
             )
         except subprocess.TimeoutExpired:
-            raise AnalysisTimeoutError() from None
+            raise timeout_error from None
 
         if proc.returncode != 0:
             reason = _pod_failure_reason(name)
             if reason == "OOMKilled":
-                raise AnalysisMemoryError()
+                raise memory_error
             if reason == "DeadlineExceeded":
-                raise AnalysisTimeoutError()
+                raise timeout_error
             _log_failure(name, proc)
             raise SandboxError(f"El sandbox terminó con código {proc.returncode} ({reason})")
-        return _parse_output(proc.stdout)
+        return proc.stdout
     finally:
         # Pase lo que pase, el pod se borra (es desechable).
         _delete_pod(name)
+
+
+def _run_in_kubernetes(tarball: bytes) -> dict:
+    stdout = _run_pod(
+        "sandbox", build_pod_spec(), tarball, TIMEOUT_SECONDS,
+        AnalysisTimeoutError(), AnalysisMemoryError(),
+    )
+    return _parse_output(stdout)
+
+
+# --- Nivel 2: descarga de dependencias -----------------------------------
+
+
+def download_dependencies(tarball: bytes) -> bytes:
+    """Descarga las wheels que necesitan los tests del repo.
+
+    Devuelve el .tar de downloader_main (resultado.json + requirements.txt
+    + wheels/), listo para pasárselo al pod de tests. Si el repo no se
+    puede preparar (sin pyproject.toml, URL directa, paquete inexistente,
+    etc.) lanza DependencyError con un motivo claro para el usuario.
+    """
+    if SANDBOX_MODE == "local":
+        output = downloader_main.process(tarball)
+    elif SANDBOX_MODE == "kubernetes":
+        output = _run_pod(
+            "descarga", build_download_pod_spec(), tarball, DOWNLOAD_TIMEOUT_SECONDS,
+            DependencyError(
+                f"La descarga de dependencias superó el tiempo máximo ({DOWNLOAD_TIMEOUT_SECONDS} s)"
+            ),
+            DependencyError(
+                f"La descarga de dependencias superó el límite de memoria ({K8S_DOWNLOAD_MEMORY_LIMIT})"
+            ),
+        )
+    elif SANDBOX_MODE == "docker":
+        # En Compose no hay cómo dejarle internet SIN la red de tu PC (donde
+        # están Postgres y Redis): antes que inseguro, no disponible.
+        raise DependencyError("El análisis con tests (nivel 2) solo está disponible en Kubernetes")
+    else:
+        raise SandboxError(f"SANDBOX_MODE desconocido: {SANDBOX_MODE!r}")
+
+    result = read_download_result(output)
+    if not result.get("ok"):
+        raise DependencyError(result.get("error") or "No se pudieron preparar las dependencias")
+    return output
+
+
+def run_coverage(tarball: bytes, deps: bytes) -> dict:
+    """Corre los tests del repo con coverage, SIN red (pod de tests).
+
+    deps = la salida de download_dependencies. Devuelve {"tests": ...,
+    "coverage": ...} (ver coverage_main) o lanza CoverageError con un
+    motivo claro para el usuario.
+    """
+    data = coverage_main.pack_input(tarball, deps)
+    if SANDBOX_MODE == "local":
+        with tempfile.TemporaryDirectory(prefix="deadcode-cov-") as tmp:
+            output = coverage_main.process(data, Path(tmp))
+    elif SANDBOX_MODE == "kubernetes":
+        output = _parse_output(_run_pod(
+            "tests", build_coverage_pod_spec(), data, COVERAGE_TIMEOUT_SECONDS,
+            CoverageError(f"Los tests del repo superaron el tiempo máximo ({COVERAGE_TIMEOUT_SECONDS} s)"),
+            CoverageError(f"Los tests del repo superaron el límite de memoria ({K8S_COVERAGE_MEMORY_LIMIT})"),
+        ))
+    elif SANDBOX_MODE == "docker":
+        raise CoverageError("El análisis con tests (nivel 2) solo está disponible en Kubernetes")
+    else:
+        raise SandboxError(f"SANDBOX_MODE desconocido: {SANDBOX_MODE!r}")
+
+    if not output.get("ok"):
+        raise CoverageError(output.get("error") or "No se pudieron ejecutar los tests")
+    return output["result"]
+
+
+def read_download_result(output: bytes) -> dict:
+    """Lee resultado.json del .tar que devolvió el pod de descarga."""
+    try:
+        with tarfile.open(fileobj=io.BytesIO(output), mode="r:") as tar:
+            member = tar.extractfile("resultado.json")
+            result = json.load(member)
+    except (tarfile.TarError, KeyError, AttributeError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+        # KeyError: no está; AttributeError: extractfile devolvió None (no es archivo).
+        raise SandboxError("El pod de descarga devolvió una respuesta inválida") from exc
+    if not isinstance(result, dict):
+        raise SandboxError("El pod de descarga devolvió una respuesta inválida")
+    return result

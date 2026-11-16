@@ -31,6 +31,50 @@ spec:
   policyTypes: [Ingress, Egress]
   # Sin reglas "ingress"/"egress" = no se permite nada.
 ---
+# 2b) Pods de DESCARGA (nivel 2, coverage.py): internet sí, red interna no.
+#     Las NetworkPolicies se SUMAN: esta abre salida solo a los pods con
+#     la etiqueta deadcode.role=downloader; el resto sigue sin red.
+#     Estos pods NO ejecutan código del repo: solo leen su pyproject.toml
+#     y descargan wheels de PyPI (ver downloader_main.py).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: downloader-internet
+  namespace: {{ $ns }}
+  labels:
+    {{- include "deadcode.labels" (dict "root" . "component" "sandbox") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      deadcode.role: downloader
+  policyTypes: [Egress]   # entrar: sigue prohibido (deny-all)
+  egress:
+    # DNS (traducir pypi.org a una IP): solo al DNS del clúster.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+    # HTTPS a internet, EXCEPTO direcciones privadas: así no llega a
+    # Postgres, Redis, la API de Kubernetes, los nodos ni tu red de casa.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8        # pods y servicios del clúster
+              - 172.16.0.0/12     # nodos de kind (red de Docker)
+              - 192.168.0.0/16    # red de casa / Docker Desktop
+              - 169.254.0.0/16    # "metadatos" de la nube (credenciales)
+              - 100.64.0.0/10     # red compartida de proveedores
+              - 127.0.0.0/8       # la propia máquina
+      ports:
+        - {protocol: TCP, port: 443}
+---
 # 3) Cuota: tope de sandboxes simultáneos y de recursos totales. Un
 #    worker comprometido no puede llenar el clúster de pods.
 apiVersion: v1

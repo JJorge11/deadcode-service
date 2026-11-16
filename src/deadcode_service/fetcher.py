@@ -29,7 +29,7 @@ ALLOWED_HOSTS = {"codeload.github.com", "github.com"}
 DOWNLOAD_TIMEOUT_SECONDS = 60
 
 MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024  # 50 MB comprimido
-MAX_EXTRACTED_BYTES = 300 * 1024 * 1024  # 300 MB de archivos .py
+MAX_EXTRACTED_BYTES = 300 * 1024 * 1024  # 300 MB descomprimidos
 MAX_FILES = 20_000
 
 
@@ -100,25 +100,39 @@ def _http_get(url: str) -> bytes:
 def extract_python_files(data: bytes, dest: Path) -> DownloadedRepo:
     """Extrae solo los .py del .tar.gz en `dest`. Corre en el SANDBOX:
     el archivo viene de internet y no confiamos en su contenido."""
+    return _extract(data, dest, python_only=True)
+
+
+def extract_all_files(data: bytes, dest: Path) -> DownloadedRepo:
+    """Extrae TODOS los archivos normales (nivel 2: los tests necesitan
+    también configuración y datos de prueba). Mismos límites."""
+    return _extract(data, dest, python_only=False)
+
+
+def _extract(data: bytes, dest: Path, *, python_only: bool) -> DownloadedRepo:
+    what = "archivos Python" if python_only else "archivos"
     try:
         with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tar:
             members = []
             total_bytes = 0
+            has_python = False
             for member in tar:
-                # Solo archivos normales .py: nada de enlaces, carpetas,
+                # Solo archivos normales: nada de enlaces, carpetas,
                 # dispositivos ni otros tipos de archivo.
-                if not member.isfile() or not member.name.endswith(".py"):
+                if not member.isfile():
                     continue
+                is_python = member.name.endswith(".py")
+                if python_only and not is_python:
+                    continue
+                has_python = has_python or is_python
                 members.append(member)
                 total_bytes += member.size
                 if len(members) > MAX_FILES:
-                    raise RepoTooLargeError(f"más de {MAX_FILES} archivos Python")
+                    raise RepoTooLargeError(f"más de {MAX_FILES} {what}")
                 if total_bytes > MAX_EXTRACTED_BYTES:
-                    raise RepoTooLargeError(
-                        f"más de {MAX_EXTRACTED_BYTES // 2**20} MB de código Python"
-                    )
+                    raise RepoTooLargeError(f"más de {MAX_EXTRACTED_BYTES // 2**20} MB de {what}")
 
-            if not members:
+            if not has_python:
                 raise NoPythonFilesError()
 
             tar.extractall(dest, members=members, filter="data")

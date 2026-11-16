@@ -95,19 +95,22 @@ tests:
               summary: Hay análisis esperando hace más de 10 minutos
               description: "El análisis pendiente más antiguo lleva 14m 0s esperando. ¿Está vivo el worker? kubectl logs -n deadcode deploy/worker"
 
-  # --- Un sandbox normal (vive 2 min) y uno huérfano --------------------
+  # --- Un sandbox normal (el más largo: tests, vive 6 min) y uno huérfano --
   # kube_pod_created = segundo en que nació el pod (aquí: 0, el inicio).
   - interval: 1m
     input_series:
-      - series: 'kube_pod_created{namespace="deadcode-sandboxes", pod="sandbox-normal"}'
-        values: '0x2'          # existe 2 minutos y lo borran
+      - series: 'kube_pod_created{namespace="deadcode-sandboxes", pod="tests-normal"}'
+        values: '0x6'          # existe 6 minutos y lo borran
       - series: 'kube_pod_created{namespace="deadcode-sandboxes", pod="sandbox-huerfano"}'
-        values: '0x15'         # nadie lo borra
+        values: '0x20'         # nadie lo borra
     alert_rule_test:
-      - eval_time: 4m
+      - eval_time: 8m
         alertname: DeadcodeSandboxHuerfano
         exp_alerts: []
-      - eval_time: 8m
+      - eval_time: 11m         # > 600 s, pero for: 1m (pendiente)
+        alertname: DeadcodeSandboxHuerfano
+        exp_alerts: []
+      - eval_time: 12m
         alertname: DeadcodeSandboxHuerfano
         exp_alerts:
           - exp_labels:
@@ -116,7 +119,7 @@ tests:
               pod: sandbox-huerfano
             exp_annotations:
               summary: "Sandbox huérfano: sandbox-huerfano"
-              description: "El pod sandbox-huerfano lleva 8m 0s vivo. Borrar: kubectl delete pod sandbox-huerfano -n deadcode-sandboxes"
+              description: "El pod sandbox-huerfano lleva 12m 0s vivo. Borrar: kubectl delete pod sandbox-huerfano -n deadcode-sandboxes"
 
   # --- La base crece 50 MB por minuto en un disco de 1 GiB ---------------
   - interval: 1m

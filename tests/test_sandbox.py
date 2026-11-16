@@ -14,7 +14,9 @@ import sys
 
 import pytest
 
-from deadcode_service import sandbox
+from deadcode_service import coverage_main, downloader_main, sandbox
+from deadcode_service.coverage_main import CoverageError
+from deadcode_service.dependencies import DependencyError
 from deadcode_service.errors import AnalysisError
 from tests.helpers import make_tarball
 
@@ -138,8 +140,27 @@ def test_modo_desconocido_es_un_error(monkeypatch):
 # --- Modo kubernetes: el pod lleva todas las protecciones -------------
 
 
-def test_pod_cumple_pod_security_restricted():
-    spec = sandbox.build_pod_spec()["spec"]
+POD_SPECS = [
+    # (cómo armarlo, /tmp, plazo, memoria)
+    pytest.param(
+        sandbox.build_pod_spec, {"medium": "Memory", "sizeLimit": sandbox.K8S_TMP_SIZE},
+        sandbox.TIMEOUT_SECONDS, "512Mi", id="analisis",
+    ),
+    pytest.param(
+        sandbox.build_download_pod_spec, {"medium": "Memory", "sizeLimit": sandbox.K8S_DOWNLOAD_TMP_SIZE},
+        sandbox.DOWNLOAD_TIMEOUT_SECONDS, "768Mi", id="descarga",
+    ),
+    pytest.param(
+        # /tmp en DISCO (sin "medium"): repo + wheels + entorno instalado.
+        sandbox.build_coverage_pod_spec, {"sizeLimit": sandbox.K8S_COVERAGE_TMP_SIZE},
+        sandbox.COVERAGE_TIMEOUT_SECONDS, "1Gi", id="tests",
+    ),
+]
+
+
+@pytest.mark.parametrize("build, tmp_volume, deadline, memory", POD_SPECS)
+def test_pod_cumple_pod_security_restricted(build, tmp_volume, deadline, memory):
+    spec = build()["spec"]
     [container] = spec["containers"]
 
     # Sin credenciales del clúster ni variables de entorno.
@@ -156,14 +177,43 @@ def test_pod_cumple_pod_security_restricted():
         "capabilities": {"drop": ["ALL"]},
     }
     # Solo /tmp, en memoria; nada del nodo (hostPath).
-    assert spec["volumes"] == [
-        {"name": "tmp", "emptyDir": {"medium": "Memory", "sizeLimit": sandbox.K8S_TMP_SIZE}}
-    ]
+    assert spec["volumes"] == [{"name": "tmp", "emptyDir": tmp_volume}]
     # Desechable, con límites y reloj.
     assert spec["restartPolicy"] == "Never"
-    assert spec["activeDeadlineSeconds"] == sandbox.TIMEOUT_SECONDS
-    assert container["resources"]["limits"]["memory"] == "512Mi"  # ¡no "512m"!
+    assert spec["activeDeadlineSeconds"] == deadline
+    assert container["resources"]["limits"]["memory"] == memory  # ¡"Mi", no "m"!
     assert container["stdin"] is True and container["stdinOnce"] is True
+    # Portero con las mismas protecciones y con límites (lo exige la cuota).
+    [portero] = spec["initContainers"]
+    assert portero["securityContext"] == container["securityContext"]
+    assert "memory" in portero["resources"]["limits"] and "cpu" in portero["resources"]["limits"]
+    assert "env" not in portero and "volumeMounts" not in portero
+
+
+def test_solo_el_pod_de_descarga_lleva_la_etiqueta_que_abre_internet():
+    """La NetworkPolicy "downloader-internet" se activa por esta etiqueta:
+    si el pod de ANÁLISIS (código ajeno) la llevara, tendría internet."""
+    analisis = sandbox.build_pod_spec()
+    descarga = sandbox.build_download_pod_spec()
+
+    tests = sandbox.build_coverage_pod_spec()
+    assert analisis["metadata"]["labels"]["deadcode.role"] == "analisis"
+    assert tests["metadata"]["labels"]["deadcode.role"] == "tests"  # ejecuta código ajeno: SIN red
+    assert descarga["metadata"]["labels"]["deadcode.role"] == "downloader"
+    # Los dos cuentan como sandbox (alerta de huérfanos, panel de Grafana).
+    assert analisis["metadata"]["labels"]["deadcode.sandbox"] == "true"
+    assert descarga["metadata"]["labels"]["deadcode.sandbox"] == "true"
+
+
+def test_pod_de_descarga_portero_y_programa():
+    spec = sandbox.build_download_pod_spec()["spec"]
+    [portero] = spec["initContainers"]
+    [container] = spec["containers"]
+
+    assert portero["command"] == [
+        "python", "-m", "deadcode_service.wait_no_network", "--solo-red-interna",
+    ]
+    assert container["command"] == ["python", "-m", "deadcode_service.downloader_main"]
 
 
 def test_pod_tiene_portero_que_confirma_sin_red():
@@ -365,3 +415,192 @@ def test_programa_del_sandbox_lee_stdin_y_escribe_json():
     assert output["ok"] is True
     assert output["result"]["commit"] == "c0ffee"
     assert [f["name"] for f in output["result"]["dead_code"]] == ["olvidada"]
+
+
+# --- Nivel 2: pod de descarga de dependencias --------------------------
+
+
+DOWNLOAD_OK = downloader_main._pack({"ok": True}, ["pytest"])
+
+
+def test_descarga_kubernetes_ok_devuelve_el_tar_y_borra_el_pod(fake_kubectl):
+    calls = fake_kubectl(stdout=DOWNLOAD_OK)
+
+    assert sandbox.download_dependencies(TARBALL) == DOWNLOAD_OK
+
+    run_command, run_kwargs = calls[0]
+    assert run_kwargs["input"] == TARBALL
+    assert _pod_name(calls).startswith("descarga-")
+    assert json.loads(_flag_value(run_command, "--overrides")) == sandbox.build_download_pod_spec()
+    _assert_pod_deleted(calls)
+
+
+def test_descarga_error_del_repo_llega_al_usuario(fake_kubectl):
+    stdout = downloader_main._pack({"ok": False, "error": "El repo no tiene pyproject.toml: ..."})
+    calls = fake_kubectl(stdout=stdout)
+
+    with pytest.raises(DependencyError, match="no tiene pyproject.toml"):
+        sandbox.download_dependencies(TARBALL)
+
+    _assert_pod_deleted(calls)
+
+
+def test_descarga_memoria_agotada(fake_kubectl):
+    calls = fake_kubectl(returncode=137, pod_status=_oom_status())
+
+    with pytest.raises(DependencyError, match="límite de memoria"):
+        sandbox.download_dependencies(TARBALL)
+
+    _assert_pod_deleted(calls)
+
+
+def test_descarga_plazo_vencido(fake_kubectl):
+    calls = fake_kubectl(returncode=137, pod_status={"reason": "DeadlineExceeded"})
+
+    with pytest.raises(DependencyError, match="tiempo máximo"):
+        sandbox.download_dependencies(TARBALL)
+
+    _assert_pod_deleted(calls)
+
+
+def test_descarga_portero_fallido_no_es_culpa_del_repo(fake_kubectl):
+    status = {"initContainerStatuses": [{"state": {"terminated": {"exitCode": 1}}}]}
+    calls = fake_kubectl(returncode=1, pod_status=status)
+
+    with pytest.raises(sandbox.SandboxError, match="NetworkNotBlocked"):
+        sandbox.download_dependencies(TARBALL)
+
+    _assert_pod_deleted(calls)
+
+
+def _tar_with(files):
+    import io
+    import tarfile
+
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w") as tar:
+        for name, data in files.items():
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            tar.addfile(info, io.BytesIO(data))
+    return buffer.getvalue()
+
+
+@pytest.mark.parametrize(
+    "stdout",
+    [
+        b"",
+        b"esto no es un tar",
+        _tar_with({"otro.txt": b"x"}),  # falta resultado.json
+        _tar_with({"resultado.json": b"no es json"}),
+        _tar_with({"resultado.json": b"[1, 2]"}),  # JSON, pero no un objeto
+    ],
+)
+def test_descarga_respuesta_invalida_no_es_culpa_del_repo(fake_kubectl, stdout):
+    calls = fake_kubectl(stdout=stdout)
+
+    with pytest.raises(sandbox.SandboxError, match="respuesta inválida"):
+        sandbox.download_dependencies(TARBALL)
+
+    _assert_pod_deleted(calls)
+
+
+def test_descarga_en_docker_no_disponible(monkeypatch):
+    """En Compose no se puede dar internet sin la red de tu PC: no se intenta."""
+    monkeypatch.setattr(sandbox, "SANDBOX_MODE", "docker")
+    monkeypatch.setattr(sandbox.subprocess, "run", lambda *a, **k: pytest.fail("no debe lanzar nada"))
+
+    with pytest.raises(DependencyError, match="solo está disponible en Kubernetes"):
+        sandbox.download_dependencies(TARBALL)
+
+
+def test_descarga_modo_local_usa_el_mismo_programa(monkeypatch):
+    """Modo local (tests): mismo downloader_main, sin pod (pip simulado)."""
+    monkeypatch.setattr(sandbox, "SANDBOX_MODE", "local")
+    monkeypatch.setattr(downloader_main, "_run_pip", lambda req, dest: subprocess.CompletedProcess([], 0, b"", b""))
+    tarball = make_tarball({"pyproject.toml": '[project]\nname = "x"\n'})
+
+    output = sandbox.download_dependencies(tarball)
+
+    assert sandbox.read_download_result(output) == {"ok": True}
+
+
+
+# --- Nivel 2: pod de tests (coverage) ------------------------------------
+
+
+COVERAGE_OK = {"ok": True, "result": {"tests": {"exit_code": 0}, "coverage": {"percent": 97.2, "files": {}}}}
+
+
+def test_pod_de_tests_portero_sin_red_y_programa():
+    """Ejecuta código ajeno: el portero COMPLETO (ni internet), no el de descarga."""
+    spec = sandbox.build_coverage_pod_spec()["spec"]
+    [portero] = spec["initContainers"]
+    [container] = spec["containers"]
+
+    assert portero["command"] == ["python", "-m", "deadcode_service.wait_no_network"]
+    assert container["command"] == ["python", "-m", "deadcode_service.coverage_main"]
+
+
+def test_tests_kubernetes_ok_pasa_repo_y_deps_y_borra_el_pod(fake_kubectl):
+    calls = fake_kubectl(stdout=json.dumps(COVERAGE_OK).encode())
+
+    assert sandbox.run_coverage(TARBALL, DOWNLOAD_OK) == COVERAGE_OK["result"]
+
+    run_command, run_kwargs = calls[0]
+    assert coverage_main.unpack_input(run_kwargs["input"]) == (TARBALL, DOWNLOAD_OK)
+    assert _pod_name(calls).startswith("tests-")
+    assert json.loads(_flag_value(run_command, "--overrides")) == sandbox.build_coverage_pod_spec()
+    _assert_pod_deleted(calls)
+
+
+def test_tests_error_del_repo_llega_al_usuario(fake_kubectl):
+    stdout = json.dumps({"ok": False, "error": "Los tests del repo no pudieron ejecutarse: KeyError: 'X'"})
+    calls = fake_kubectl(stdout=stdout.encode())
+
+    with pytest.raises(CoverageError, match="no pudieron ejecutarse"):
+        sandbox.run_coverage(TARBALL, DOWNLOAD_OK)
+
+    _assert_pod_deleted(calls)
+
+
+@pytest.mark.parametrize(
+    "pod_status, message",
+    [(_oom_status(), "límite de memoria"), ({"reason": "DeadlineExceeded"}, "tiempo máximo")],
+)
+def test_tests_memoria_o_plazo(fake_kubectl, pod_status, message):
+    calls = fake_kubectl(returncode=137, pod_status=pod_status)
+
+    with pytest.raises(CoverageError, match=message):
+        sandbox.run_coverage(TARBALL, DOWNLOAD_OK)
+
+    _assert_pod_deleted(calls)
+
+
+def test_tests_respuesta_invalida_no_es_culpa_del_repo(fake_kubectl):
+    fake_kubectl(stdout=b"esto no es json")
+
+    with pytest.raises(sandbox.SandboxError):
+        sandbox.run_coverage(TARBALL, DOWNLOAD_OK)
+
+
+def test_tests_en_docker_no_disponible(monkeypatch):
+    monkeypatch.setattr(sandbox, "SANDBOX_MODE", "docker")
+    monkeypatch.setattr(sandbox.subprocess, "run", lambda *a, **k: pytest.fail("no debe lanzar nada"))
+
+    with pytest.raises(CoverageError, match="solo está disponible en Kubernetes"):
+        sandbox.run_coverage(TARBALL, DOWNLOAD_OK)
+
+
+def test_tests_modo_local_usa_el_mismo_programa(monkeypatch):
+    monkeypatch.setattr(sandbox, "SANDBOX_MODE", "local")
+    seen = {}
+
+    def fake_process(data, workdir):
+        seen["input"] = coverage_main.unpack_input(data)
+        return COVERAGE_OK
+
+    monkeypatch.setattr(coverage_main, "process", fake_process)
+
+    assert sandbox.run_coverage(TARBALL, DOWNLOAD_OK) == COVERAGE_OK["result"]
+    assert seen["input"] == (TARBALL, DOWNLOAD_OK)

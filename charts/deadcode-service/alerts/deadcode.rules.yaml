@@ -50,9 +50,10 @@ groups:
             kubectl logs -n deadcode deploy/worker
 
       - alert: DeadcodeSandboxHuerfano
-        # Un sandbox vive como máximo ~150 s (120 de análisis + 30 de
-        # arranque). Más de 5 min = nadie lo borró (pasó de verdad).
-        expr: time() - kube_pod_created{namespace="deadcode-sandboxes"} > 300
+        # El sandbox más largo (pod de tests, nivel 2) vive como máximo
+        # ~6,5 min (360 s de plazo + 30 de arranque). Más de 10 min = nadie
+        # lo borró (pasó de verdad).
+        expr: time() - kube_pod_created{namespace="deadcode-sandboxes"} > 600
         for: 1m
         labels:
           severity: warning

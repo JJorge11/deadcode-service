@@ -282,7 +282,7 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
      PrometheusRule (metrics.alerts.enabled). 5 reglas: DeadcodeAPICaida
      (absent(up==1), 2m, critical), DeadcodeFuenteDeMetricasCaida
      (source_up==0, 2m, critical), DeadcodeWorkerAtascado (pendiente >
-     600 s, 2m), DeadcodeSandboxHuerfano (time()-kube_pod_created > 300,
+     600 s, 2m), DeadcodeSandboxHuerfano (time()-kube_pod_created > 600 desde el nivel 2; antes 300,
      1m) y DeadcodePostgresCasiLleno (> 80%, 10m). En kind el disco
      local-path NO da kubelet_volume_stats: nueva métrica
      deadcode_postgres_database_bytes (pg_database_size, sin el WAL:
@@ -315,9 +315,76 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
       itsdangerous 10 wheels 2,5 MB 6 s; requests 33 / 11 MB / 16 s;
       este repo 39 / 18 MB / 21 s; URL directa y paquete inexistente
       -> error claro.
-  2.2 SIGUIENTE: NetworkPolicy para los pods de descarga (internet sí,
-      direcciones privadas no) + portero + verificación en vivo.
-  2.3 sandbox.py lanza el pod de descarga.
+  2.2 HECHO: NetworkPolicy "downloader-internet" en templates/sandbox.yaml
+      (se SUMA a deny-all): solo pods con deadcode.role=downloader;
+      salida a DNS del clúster (kube-dns, 53) y TCP 443 a 0.0.0.0/0
+      EXCEPTO 10/8, 172.16/12, 192.168/16, 169.254/16, 100.64/10, 127/8.
+      Portero: wait_no_network --solo-red-interna (solo exige que la API
+      de K8s no responda; sin destinos que probar = falla cerrado, porque
+      all([]) es True). 197 tests (+1 saltado); mutante "sin destinos"
+      detectado. Verificado en vivo (netpol aplicada a mano antes del
+      commit; ArgoCD la adopta): pod downloader -> PyPI conecta;
+      1.1.1.1:80, API de K8s, ArgoCD (¡también 443!), Postgres, Redis,
+      kubelet, 169.254.169.254 y host de Docker bloqueados; pod SIN
+      etiqueta: ni DNS. Pod completo (portero + downloader_main, imagen
+      local "portero2" con kind load): requests 33 wheels / 11 MB en 22 s;
+      repo con URL directa rechazado; 0 pods vivos al terminar.
+  2.3 HECHO: sandbox.download_dependencies(tarball) -> .tar (o
+      DependencyError con motivo claro). Lo común de los 2 pods quedó en
+      _pod_spec() y _run_pod() (crear, traducir fallos, borrar SIEMPRE).
+      Etiqueta deadcode.role: "analisis" / "downloader" (la que abre
+      internet; test + mutante "análisis con etiqueta de internet").
+      Pod de descarga: 240 s, 768Mi, /tmp 256Mi, prefijo "descarga-".
+      Modo docker: NO disponible a propósito (en Compose no se puede dar
+      internet sin la red de tu PC, donde están Postgres y Redis).
+      Respuesta rota del pod = SandboxError (no es culpa del repo).
+      212 tests (+1 saltado); 5 mutantes detectados. En vivo (sandbox.py
+      desde el PC con SANDBOX_MODE=kubernetes e imagen local portero2):
+      análisis Vulture OK (21, 8 s); itsdangerous 10 wheels 20 s;
+      requests 33 wheels 39 s; URL directa y paquete inexistente -> error
+      claro; 0 pods vivos. Aún NO se llama desde tasks.py (paso 5).
+  Paso 3 (pod de TESTS: el "cocinero", sin red), en partes:
+  3.1 HECHO: coverage_main.py. Entrada: .tar con repo.tar.gz + deps.tar
+      (pack_input, lo usará el worker). Extrae TODO el repo
+      (fetcher.extract_all_files, mismos límites) y de deps solo
+      requirements.txt + wheels/*.whl. venv en /tmp con el Python del
+      sistema -> pip --no-index -> repo --editable (si falla: sigue con
+      PYTHONPATH) -> coverage run con NUESTRO --rcfile (ignora la config
+      del repo) -m pytest --continue-on-collection-errors -> coverage json
+      -> {percent, files: {ruta: {executed, missing}}} (rutas resueltas
+      contra el repo; fuera = descartadas). Código ajeno: salida a logs
+      (no a nuestro stdout), entorno mínimo, plazo 180 s con SIGINT
+      (coverage guarda) y luego SIGKILL al grupo. pytest con código
+      distinto de 0/1 y 0% = error claro ("no pudieron ejecutarse: <motivo>").
+      Prueba real en Docker SIN red (nobody, solo lectura, 1g):
+      itsdangerous 297 OK 97,2% 16 s; click 86,8% 46 s; requests 87,9%
+      112 s; este repo -> "no pudieron ejecutarse: KeyError:
+      'POSTGRES_USER'". Repo tramposo: JSON falso impreso NO llegó a
+      nuestra salida; sleep infinito cortado a los 8 s CON datos; salir a
+      internet falló. 27 tests (3 solo Linux: señales; probados en
+      contenedor), 236 pasan (+4 saltados); 6 mutantes detectados.
+      Encontrados por los tests: AttributeError sin atrapar en informe
+      roto; rutas "/x" y "../" se colaban.
+      Límite conocido: el código ajeno (mismo usuario) podría falsear el
+      informe de SU repo; no puede salir del pod.
+  3.2 HECHO: sandbox.run_coverage(tarball, deps) -> {tests, coverage} o
+      CoverageError. Pod "tests-..." con etiqueta deadcode.role=tests
+      (SIN red: portero completo), 360 s, 1Gi, /tmp en DISCO (emptyDir
+      sin medium, 2Gi; repo + wheels + entorno). Docker: no disponible.
+      Alerta DeadcodeSandboxHuerfano subida a > 600 s (test promtool:
+      pod de tests de 6 min NO alerta; mutante "300" detectado). Cuota
+      2Gi alcanza: los pods de un análisis van uno tras otro.
+      245 tests (+4 saltados); mutantes "tests con gafete/portero de
+      descarga" y "/tmp en memoria" detectados. EN VIVO (imagen local
+      nivel2 con kind load, descarga -> tests): itsdangerous 13 s + 26 s,
+      97,2%; click 10 + 44 s, 86,8%; requests 37 + 151 s, 87,9% (tests
+      123 s: cerca del límite de 180); este repo -> "no pudieron
+      ejecutarse: KeyError: 'POSTGRES_USER'"; tramposo: plazo REAL de
+      180 s -> Ctrl+C -> datos guardados (usada sí, nunca no), internet
+      falló; 0 pods vivos al terminar.
+      ⚠️ Para el paso 5: RQ corta cada trabajo a los 180 s POR DEFECTO
+      (no hay job_timeout): el nivel 2 completo puede tardar ~10 min ->
+      fijar job_timeout al encolar.
 - Pendiente después: dashboard, README.
 - Pendiente: dashboard simple (el usuario tuvo dificultad usando /docs
   para consultar resultados: copiar ids y leer JSON es incómodo).
@@ -571,6 +638,9 @@ cambiar el proyecto) con itsdangerous, click, requests y este repo.
   (lee su pyproject.toml, nunca ejecuta nada; nivel 2)
 - src/deadcode_service/downloader_main.py: programa DENTRO del pod de
   descarga (stdin .tar.gz -> stdout .tar con las wheels; nivel 2)
+- src/deadcode_service/coverage_main.py: programa DENTRO del pod de
+  tests (repo + wheels por stdin -> instala SIN red, corre los tests con
+  coverage -> JSON; nivel 2)
 - src/deadcode_service/worker.py: worker RQ que escucha la cola
 - src/deadcode_service/metrics.py: métricas para Prometheus (GET
   /metrics + middleware que cuenta y mide cada petición)
