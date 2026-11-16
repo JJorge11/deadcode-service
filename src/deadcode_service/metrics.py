@@ -18,9 +18,11 @@ y nunca la URL real con el id.
 import time
 
 from fastapi import FastAPI, Request
-from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+from prometheus_client import CONTENT_TYPE_LATEST, REGISTRY, Counter, Histogram, generate_latest
 from starlette.responses import Response
 from starlette.routing import Match
+
+from deadcode_service.analysis_metrics import AnalysisCollector
 
 # Ruta para URLs que no existen (404). Sin esto, un robot que pruebe
 # /wp-admin, /.env, etc. crearía miles de series.
@@ -54,6 +56,8 @@ def _route_template(request: Request) -> str:
 
 def setup_metrics(app: FastAPI) -> None:
     """Agrega a la app el endpoint /metrics y el middleware que mide."""
+    # Métricas de los análisis (leídas de Postgres y Redis en cada visita).
+    REGISTRY.register(AnalysisCollector())
 
     @app.get(METRICS_PATH, include_in_schema=False)  # oculto en /docs
     def metrics():

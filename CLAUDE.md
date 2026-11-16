@@ -219,6 +219,21 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
      del Service con nombre "http" + templates/servicemonitor.yaml
      (metrics.serviceMonitor.enabled/interval 15s). 144 tests pasan
      (+1 saltado); mutante "URL real como etiqueta" detectado.
+  3. HECHO (sin commit; falta verlo en el clúster): métricas de los
+     análisis (analysis_metrics.py). NO se cuentan en el worker: RQ hace
+     fork y lo que cuenta la copia se pierde. Se leen de la fuente de
+     verdad (Postgres + Redis) en cada visita a /metrics de la API
+     (custom Collector): deadcode_queue_jobs, deadcode_analyses{status},
+     deadcode_analyses_failed_total{reason} (mensaje -> motivo FIJO por
+     fragmento; desconocido = "otro"), deadcode_analysis_duration_seconds
+     (histograma de finished_at - created_at, solo terminados bien:
+     incluye la espera en cola), deadcode_analyses_oldest_pending_seconds
+     (worker atascado) y deadcode_metrics_source_up{source} (si Postgres
+     o Redis caen, /metrics responde igual). ⚠️ Las 2 réplicas de la API
+     reportan lo MISMO: en Grafana usar max(), no sum(). describe()
+     vacío para no consultar Postgres al importar. Sandboxes vivos: ya
+     los mide kube-state-metrics. 156 tests pasan (+1 saltado); mutantes
+     "duración incluye fallidos" y "todo es otro" detectados.
 - Reinicio del PC: Docker Desktop NO arranca solo. Abrirlo -> el
   clúster kind vuelve solo (~1-2 min, verificado) -> Compose NO
   (docker compose up -d). Los datos de Postgres sobreviven.
@@ -436,6 +451,9 @@ positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
 - src/deadcode_service/worker.py: worker RQ que escucha la cola
 - src/deadcode_service/metrics.py: métricas para Prometheus (GET
   /metrics + middleware que cuenta y mide cada petición)
+- src/deadcode_service/analysis_metrics.py: métricas de los análisis
+  (cola, estados, fallos por motivo, duración), leídas de Postgres y
+  Redis cuando Prometheus visita /metrics
 - tests/conftest.py: preparación común (base de test, limpieza, cliente)
 - tests/test_*.py: tests de health, endpoints de análisis, tarea,
   validación de URLs, descarga, analizador y worker real
