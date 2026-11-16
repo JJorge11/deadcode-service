@@ -236,7 +236,8 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
      vacío para no consultar Postgres al importar. Sandboxes vivos: ya
      los mide kube-state-metrics. 156 tests pasan (+1 saltado); mutantes
      "duración incluye fallidos" y "todo es otro" detectados.
-  4. HECHO (sin commit; falta verlo en Grafana): dashboard
+  4. HECHO (commit 313d508; verificado: cargado en Grafana, 13 paneles,
+     provisioned=True -> no se puede guardar desde la web): dashboard
      "deadcode-service" (uid deadcode-overview), 13 paneles en 3 filas:
      API (peticiones/s sin /health, % 5xx, p95), análisis (cola,
      pendiente más viejo, estados, fallos por motivo, por hora, p50/p95)
@@ -252,6 +253,25 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
      queue_job). 159 tests (+1 saltado).
      ⚠️ Helm procesa TODO el archivo de plantilla, también los
      comentarios: escribir llaves dobles en un comentario rompe el chart.
+  5. HECHO (sin commit; falta aplicar monitoring.yaml y verlo en vivo):
+     alertas. Reglas en charts/deadcode-service/alerts/deadcode.rules.yaml
+     (formato Prometheus) -> templates/alerts.yaml las mete en un
+     PrometheusRule (metrics.alerts.enabled). 5 reglas: DeadcodeAPICaida
+     (absent(up==1), 2m, critical), DeadcodeFuenteDeMetricasCaida
+     (source_up==0, 2m, critical), DeadcodeWorkerAtascado (pendiente >
+     600 s, 2m), DeadcodeSandboxHuerfano (time()-kube_pod_created > 300,
+     1m) y DeadcodePostgresCasiLleno (> 80%, 10m). En kind el disco
+     local-path NO da kubelet_volume_stats: nueva métrica
+     deadcode_postgres_database_bytes (pg_database_size, sin el WAL:
+     aproximada) / kube_persistentvolumeclaim_resource_requests_storage_bytes.
+     Tests con promtool (tests/alerts/deadcode.rules.test.yaml): 6 casos
+     con series simuladas (incluye "solo 1 réplica cae = sin alerta" y
+     "sandbox normal no alerta"); en CI dentro del job "helm" con
+     quay.io/prometheus/prometheus:v3.16.0. Aprendido: absent() con
+     filtro (== 1) NO copia las etiquetas. Mutante "umbral 3000"
+     detectado. Alertmanager activado en monitoring.yaml (64/128Mi:
+     MEDIR); aún sin destino de notificaciones (se ven en su web y en
+     Grafana). 160 tests (+1 saltado).
 - Reinicio del PC: Docker Desktop NO arranca solo. Abrirlo -> el
   clúster kind vuelve solo (~1-2 min, verificado) -> Compose NO
   (docker compose up -d). Los datos de Postgres sobreviven.
@@ -494,6 +514,9 @@ positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
   templates/ con config, api, worker, postgres, redis, sandbox,
   servicemonitor, dashboard y _helpers.tpl; dashboards/deadcode.json
   GENERADO por scripts/make_dashboard.py)
+- charts/deadcode-service/alerts/deadcode.rules.yaml: reglas de alerta
+  (formato Prometheus); tests/alerts/deadcode.rules.test.yaml: sus tests
+  con promtool (comando en la cabecera del archivo)
 - scripts/make_dashboard.py: fuente del dashboard de Grafana (cambiar
   aquí y ejecutar: uv run python scripts/make_dashboard.py --write)
 - .env.example: plantilla de variables (copiar a .env)
@@ -557,6 +580,16 @@ positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
     helm upgrade deadcode charts/deadcode-service -n deadcode --set image.repository=deadcode-service --set image.tag=prueba --wait
   / si "helm" o "kind" no se reconocen: abrir una terminal nueva (el
     PATH se actualizó al instalarlos con winget)
+- GitHub CLI (gh 2.104, instalado con winget; sesión iniciada como
+  JJorge11, token en el Administrador de credenciales de Windows; git
+  sigue usando su credential.helper "manager", sin cambios):
+  / últimos CI: gh run list --limit 5
+  / jobs de un run: gh run view <id>   (log de lo que falló: gh run view <id> --log-failed)
+  / esperar a que termine: gh run watch <id> --exit-status
+  / sin sesión la API de GitHub permite 60 consultas/hora (se agotaron
+    esperando el CI); con gh, 5000/hora.
+  / ⚠️ PowerShell 5.1 corta mal los argumentos con espacios/comillas al
+    pasarlos a gh (--jq '...'): usar Git Bash para esos comandos.
 - Apagar (conserva datos): docker compose down
 - Apagar y BORRAR datos de Postgres: docker compose down -v
 

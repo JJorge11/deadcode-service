@@ -1,0 +1,80 @@
+# Reglas de alerta de deadcode-service (formato estándar de Prometheus).
+#
+# Este archivo se usa dos veces:
+#   1. templates/alerts.yaml lo mete en un PrometheusRule y Prometheus
+#      lo carga en el clúster.
+#   2. promtool lo prueba con datos simulados (tests/alerts/), también en
+#      el CI.
+#
+# Cada regla: "expr" (la condición), "for" (cuánto tiempo SEGUIDO debe
+# cumplirse: evita alarmas por un parpadeo), "severity" (critical = hay
+# que actuar ya; warning = revisar pronto) y textos para quien la recibe.
+# Varias métricas deadcode_* salen de las 2 réplicas de la API con el
+# MISMO valor: por eso max()/min().
+groups:
+  - name: deadcode
+    rules:
+      - alert: DeadcodeAPICaida
+        # absent(...) = "no hay NINGÚN pod de la API con up == 1".
+        expr: absent(up{namespace="deadcode", service="api"} == 1)
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: La API no responde
+          description: >-
+            Ningún pod de la API responde a Prometheus desde hace 2 minutos.
+            Revisar: kubectl get pods -n deadcode
+
+      - alert: DeadcodeFuenteDeMetricasCaida
+        expr: min by (source) (deadcode_metrics_source_up) == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "La API no puede leer {{ $labels.source }}"
+          description: >-
+            La API no logra conectarse a {{ $labels.source }} desde hace 2
+            minutos: los análisis no se pueden crear ni consultar.
+
+      - alert: DeadcodeWorkerAtascado
+        expr: max(deadcode_analyses_oldest_pending_seconds) > 600
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Hay análisis esperando hace más de 10 minutos
+          description: >-
+            El análisis pendiente más antiguo lleva
+            {{ $value | humanizeDuration }} esperando. ¿Está vivo el worker?
+            kubectl logs -n deadcode deploy/worker
+
+      - alert: DeadcodeSandboxHuerfano
+        # Un sandbox vive como máximo ~150 s (120 de análisis + 30 de
+        # arranque). Más de 5 min = nadie lo borró (pasó de verdad).
+        expr: time() - kube_pod_created{namespace="deadcode-sandboxes"} > 300
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Sandbox huérfano: {{ $labels.pod }}"
+          description: >-
+            El pod {{ $labels.pod }} lleva {{ $value | humanizeDuration }}
+            vivo. Borrar: kubectl delete pod {{ $labels.pod }} -n deadcode-sandboxes
+
+      - alert: DeadcodePostgresCasiLleno
+        # Aproximado: tamaño de la base (sin el WAL) / disco pedido. En kind
+        # el disco no informa su espacio libre real.
+        expr: >-
+          max(deadcode_postgres_database_bytes)
+          / max(kube_persistentvolumeclaim_resource_requests_storage_bytes{namespace="deadcode", persistentvolumeclaim="data-postgres-0"})
+          > 0.8
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: La base de datos ocupa más del 80% del disco
+          description: >-
+            La base ocupa {{ $value | humanizePercentage }} del disco de
+            Postgres (aproximado, sin el WAL). Agrandar el disco
+            (postgres.storage) o borrar análisis viejos.

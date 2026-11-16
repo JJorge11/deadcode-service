@@ -1,0 +1,142 @@
+# Tests de las reglas de alerta con promtool (viene con Prometheus).
+# Se simulan series minuto a minuto y se comprueba qué alertas están
+# DISPARADAS (firing) en cada momento. Las que solo están "pending"
+# (esperando a cumplir el "for") no aparecen.
+#
+# Notación de valores: '1x5 0x10' = 1 durante 6 muestras (minutos 0-5)
+# y luego 0 durante 11; '0+60x20' = empieza en 0 y sube 60 por minuto.
+#
+# Ejecutar (PowerShell, desde la raíz del repo):
+#   docker run --rm -v "${PWD}:/w" -w /w --entrypoint promtool quay.io/prometheus/prometheus:v3.16.0 test rules tests/alerts/deadcode.rules.test.yaml
+rule_files:
+  - ../../charts/deadcode-service/alerts/deadcode.rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # --- La API se cae del todo en el minuto 6 ---------------------------
+  - interval: 1m
+    input_series:
+      - series: 'up{namespace="deadcode", service="api", pod="api-a"}'
+        values: '1x5 0x10'
+      - series: 'up{namespace="deadcode", service="api", pod="api-b"}'
+        values: '1x5 0x10'
+    alert_rule_test:
+      - eval_time: 5m          # todo bien
+        alertname: DeadcodeAPICaida
+        exp_alerts: []
+      - eval_time: 7m          # caída hace 1 min: aún no (for: 2m)
+        alertname: DeadcodeAPICaida
+        exp_alerts: []
+      - eval_time: 9m          # caída hace 3 min: ¡alerta!
+        alertname: DeadcodeAPICaida
+        exp_alerts:
+          - exp_labels:
+              # absent() con un filtro (== 1) NO copia namespace/service.
+              severity: critical
+            exp_annotations:
+              summary: La API no responde
+              description: "Ningún pod de la API responde a Prometheus desde hace 2 minutos. Revisar: kubectl get pods -n deadcode"
+
+  # --- Solo UNA réplica cae: la otra sigue atendiendo, no es alerta ------
+  - interval: 1m
+    input_series:
+      - series: 'up{namespace="deadcode", service="api", pod="api-a"}'
+        values: '1x5 0x10'
+      - series: 'up{namespace="deadcode", service="api", pod="api-b"}'
+        values: '1x15'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: DeadcodeAPICaida
+        exp_alerts: []
+
+  # --- Postgres deja de responder en el minuto 4 (Redis sigue bien) -----
+  - interval: 1m
+    input_series:
+      - series: 'deadcode_metrics_source_up{source="postgres", pod="api-a"}'
+        values: '1x3 0x10'
+      - series: 'deadcode_metrics_source_up{source="redis", pod="api-a"}'
+        values: '1x13'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: DeadcodeFuenteDeMetricasCaida
+        exp_alerts: []
+      - eval_time: 7m
+        alertname: DeadcodeFuenteDeMetricasCaida
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              source: postgres
+            exp_annotations:
+              summary: La API no puede leer postgres
+              description: "La API no logra conectarse a postgres desde hace 2 minutos: los análisis no se pueden crear ni consultar."
+
+  # --- Un análisis espera y espera (worker caído) ------------------------
+  # Las 2 réplicas de la API reportan lo mismo: debe salir UNA alerta.
+  - interval: 1m
+    input_series:
+      - series: 'deadcode_analyses_oldest_pending_seconds{pod="api-a"}'
+        values: '0+60x20'
+      - series: 'deadcode_analyses_oldest_pending_seconds{pod="api-b"}'
+        values: '0+60x20'
+    alert_rule_test:
+      - eval_time: 10m         # 600 s: justo en el límite, aún no
+        alertname: DeadcodeWorkerAtascado
+        exp_alerts: []
+      - eval_time: 12m         # > 600 s desde el minuto 11, pero for: 2m
+        alertname: DeadcodeWorkerAtascado
+        exp_alerts: []
+      - eval_time: 14m
+        alertname: DeadcodeWorkerAtascado
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: Hay análisis esperando hace más de 10 minutos
+              description: "El análisis pendiente más antiguo lleva 14m 0s esperando. ¿Está vivo el worker? kubectl logs -n deadcode deploy/worker"
+
+  # --- Un sandbox normal (vive 2 min) y uno huérfano --------------------
+  # kube_pod_created = segundo en que nació el pod (aquí: 0, el inicio).
+  - interval: 1m
+    input_series:
+      - series: 'kube_pod_created{namespace="deadcode-sandboxes", pod="sandbox-normal"}'
+        values: '0x2'          # existe 2 minutos y lo borran
+      - series: 'kube_pod_created{namespace="deadcode-sandboxes", pod="sandbox-huerfano"}'
+        values: '0x15'         # nadie lo borra
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: DeadcodeSandboxHuerfano
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: DeadcodeSandboxHuerfano
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              namespace: deadcode-sandboxes
+              pod: sandbox-huerfano
+            exp_annotations:
+              summary: "Sandbox huérfano: sandbox-huerfano"
+              description: "El pod sandbox-huerfano lleva 8m 0s vivo. Borrar: kubectl delete pod sandbox-huerfano -n deadcode-sandboxes"
+
+  # --- La base crece 50 MB por minuto en un disco de 1 GiB ---------------
+  - interval: 1m
+    input_series:
+      - series: 'deadcode_postgres_database_bytes{pod="api-a"}'
+        values: '500000000+50000000x30'
+      - series: 'kube_persistentvolumeclaim_resource_requests_storage_bytes{namespace="deadcode", persistentvolumeclaim="data-postgres-0"}'
+        values: '1073741824x30'
+    alert_rule_test:
+      - eval_time: 7m          # 850 MB = 79%: aún no
+        alertname: DeadcodePostgresCasiLleno
+        exp_alerts: []
+      - eval_time: 17m         # > 80% desde el minuto 8, pero for: 10m
+        alertname: DeadcodePostgresCasiLleno
+        exp_alerts: []
+      - eval_time: 19m
+        alertname: DeadcodePostgresCasiLleno
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: La base de datos ocupa más del 80% del disco
+              description: "La base ocupa 135% del disco de Postgres (aproximado, sin el WAL). Agrandar el disco (postgres.storage) o borrar análisis viejos."

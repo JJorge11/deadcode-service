@@ -44,6 +44,8 @@ metrics:
     interval: 15s                 # cada cuánto Prometheus lee /metrics
   dashboard:
     enabled: true                 # dashboards/deadcode.json -> Grafana
+  alerts:
+    enabled: true                 # alerts/deadcode.rules.yaml -> Prometheus
 
 postgres:
   image: postgres:17-alpine

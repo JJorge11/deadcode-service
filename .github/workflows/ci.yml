@@ -127,6 +127,18 @@ jobs:
       - name: Generar el YAML (helm template)
         run: helm template deadcode charts/deadcode-service -n deadcode > /dev/null
 
+      # promtool (viene con Prometheus, misma versión que en el clúster):
+      # revisa la sintaxis de las reglas de alerta y las prueba con datos
+      # simulados (¿salta la alerta cuando debe, y no antes?).
+      - name: Probar las reglas de alerta (promtool)
+        run: |
+          docker run --rm -v "$PWD:/w" -w /w --entrypoint promtool \
+            quay.io/prometheus/prometheus:v3.16.0 \
+            check rules charts/deadcode-service/alerts/deadcode.rules.yaml
+          docker run --rm -v "$PWD:/w" -w /w --entrypoint promtool \
+            quay.io/prometheus/prometheus:v3.16.0 \
+            test rules tests/alerts/deadcode.rules.test.yaml
+
   # ------------------------------------------------------------------
   # 4) Publicar la imagen en GHCR (GitHub Container Registry).
   #    Solo si los dos jobs anteriores pasaron y solo en push a main

@@ -1,0 +1,15 @@
+{{- if .Values.metrics.alerts.enabled }}
+# Reglas de alerta (alerts/deadcode.rules.yaml) como PrometheusRule: un
+# tipo de objeto (CRD) de kube-prometheus-stack. Prometheus carga TODOS
+# los PrometheusRule del clúster (ruleSelectorNilUsesHelmValues: false).
+# .Files.Get copia el archivo tal cual: sus plantillas de Prometheus
+# (signo pesos + labels, etc.) no las procesa Helm.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: deadcode-alerts
+  labels:
+    {{- include "deadcode.labels" (dict "root" . "component" "monitoring") | nindent 4 }}
+spec:
+{{ .Files.Get "alerts/deadcode.rules.yaml" | indent 2 }}
+{{- end }}

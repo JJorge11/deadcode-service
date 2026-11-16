@@ -109,6 +109,13 @@ def test_antiguedad_del_pendiente_mas_viejo():
     assert 90 <= _value("deadcode_analyses_oldest_pending_seconds") < 100
 
 
+def test_informa_el_tamano_de_la_base():
+    """En kind el disco no informa su espacio: se lo preguntamos a Postgres."""
+    size = _value("deadcode_postgres_database_bytes")
+
+    assert size > 1_000_000  # una base vacía de Postgres ya ocupa varios MB
+
+
 def test_cuenta_la_cola_de_redis(client):
     client.post("/analyses", json={"repo_url": REPO})
     client.post("/analyses", json={"repo_url": REPO})

@@ -86,6 +86,12 @@ def _postgres_metrics():
             "SELECT coalesce(extract(epoch FROM now() - min(created_at)), 0) AS s"
             " FROM analyses WHERE status IN ('queued', 'running')"
         ).fetchone()["s"]
+        # En kind el disco (local-path) NO informa su espacio libre: no hay
+        # kubelet_volume_stats. Le preguntamos a Postgres cuánto ocupa la
+        # base. Aproximado: no incluye el WAL ni otros archivos internos.
+        database_bytes = conn.execute(
+            "SELECT pg_database_size(current_database()) AS bytes"
+        ).fetchone()["bytes"]
 
     analyses = GaugeMetricFamily(
         "deadcode_analyses", "Análisis guardados, por estado.", labels=["status"]
@@ -117,7 +123,13 @@ def _postgres_metrics():
         "Segundos que lleva esperando el análisis pendiente más antiguo (0 = ninguno).",
         value=float(oldest),
     )
-    return [analyses, failed, histogram, pending]
+
+    size = GaugeMetricFamily(
+        "deadcode_postgres_database_bytes",
+        "Tamaño de la base de datos (pg_database_size; sin el WAL).",
+        value=float(database_bytes),
+    )
+    return [analyses, failed, histogram, pending, size]
 
 
 def _redis_metrics():

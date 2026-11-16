@@ -31,8 +31,16 @@ spec:
         kubeScheduler: {enabled: false}
         kubeProxy: {enabled: false}
 
-        # Alertmanager (envía avisos): lo activamos en el paso de alertas.
-        alertmanager: {enabled: false}
+        # Alertmanager: RECIBE las alertas que dispara Prometheus, las
+        # agrupa y las envía (correo, chat...). Sin destino configurado
+        # aún: se ven en su web y en Grafana. Memoria: límite holgado;
+        # medir el uso real con Prometheus y ajustar (lección de Grafana).
+        alertmanager:
+          enabled: true
+          alertmanagerSpec:
+            resources:
+              requests: {cpu: 10m, memory: 64Mi}
+              limits: {memory: 128Mi}
 
         grafana:
           # Contraseña desde un Secret creado por comando (si no, sería
