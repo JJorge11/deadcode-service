@@ -138,9 +138,16 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
 - Etapa 4 COMPLETA. El modo "local" ya NO se usa en el clúster.
   Actualizar la versión exige 2 commits (código -> CI publica sha ->
   commit con el nuevo image.tag): la etapa 5 (ArgoCD) lo automatiza.
-- Pendiente de seguridad: no hay límite de procesos por pod en el
-  sandbox de K8s (podPidsLimit del kubelet, se configura al crear el
-  clúster en kind-config.yaml).
+- HECHO: límite de procesos por pod (podPidsLimit: 1024 en el kubelet de
+  AMBOS nodos; antes era ilimitado). En k8s/kind-config.yaml
+  (kubeadmConfigPatches) para clústeres nuevos; en el clúster existente
+  aplicado EN CALIENTE (ver "Comandos útiles"), sin recrearlo y sin
+  reiniciar pods. 1024 = ~7x el pod más grande (Grafana, ~150 PIDs).
+  Verificado: fork bomb de prueba en deadcode-sandboxes frenó en 1022
+  hijos (+ padre + pause = 1024) sin afectar a otros pods; análisis
+  real OK (21 hallazgos, 9,4 s). Límite por NODO (K8s no permite uno
+  por pod): lo ideal es un nodo solo para sandboxes con límite menor
+  (~128, como en Docker) -> pendiente para la nube (node pool aparte).
 - Etapa 5 (GitOps con ArgoCD) COMPLETA. Pasos:
   1. HECHO: ArgoCD v3.6.1 instalado con el manifiesto oficial
      (kubectl apply --server-side) en el namespace "argocd" (7 pods).
@@ -597,6 +604,12 @@ positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
     lo revertiría; antes quitar "automated" de la Application):
     docker build -t deadcode-service:prueba . ; kind load docker-image deadcode-service:prueba --name deadcode
     helm upgrade deadcode charts/deadcode-service -n deadcode --set image.repository=deadcode-service --set image.tag=prueba --wait
+  / límite de PIDs en un clúster YA creado (Git Bash; repetir por nodo:
+    deadcode-worker y deadcode-control-plane; los pods siguen vivos):
+    export MSYS_NO_PATHCONV=1   (si no, Git Bash cambia /var/... por C:/Program Files/Git/var/...)
+    docker exec <nodo> sh -c 'grep -q "^podPidsLimit:" /var/lib/kubelet/config.yaml || echo "podPidsLimit: 1024" >> /var/lib/kubelet/config.yaml'
+    docker exec <nodo> systemctl restart kubelet
+    comprobar: kubectl get --raw /api/v1/nodes/<nodo>/proxy/configz  (buscar podPidsLimit)
   / si "helm" o "kind" no se reconocen: abrir una terminal nueva (el
     PATH se actualizó al instalarlos con winget)
 - GitHub CLI (gh 2.104, instalado con winget; sesión iniciada como

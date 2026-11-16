@@ -7,6 +7,19 @@ kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 name: deadcode
 
+# Configuración del kubelet (el programa que arranca los pods en cada
+# nodo), igual para TODOS los nodos.
+# podPidsLimit: máximo de procesos+hilos por pod. Sin esto es ilimitado:
+# una "fork bomb" en un sandbox (código ajeno) agotaría los PIDs del nodo
+# entero y nada más podría arrancar. 1024 = ~7x lo que usa el pod más
+# grande hoy (Grafana, ~150). Kubernetes no permite un límite por pod:
+# lo ideal sería un nodo solo para sandboxes con un límite menor (nube).
+# En un clúster YA creado esto no se aplica solo: ver CLAUDE.md.
+kubeadmConfigPatches:
+  - |
+    kind: KubeletConfiguration
+    podPidsLimit: 1024
+
 nodes:
   # El "cerebro": decide dónde corre cada pod y vigila que todo esté
   # como se pidió.
