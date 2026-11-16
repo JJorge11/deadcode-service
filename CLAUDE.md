@@ -206,7 +206,8 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
     log de aviso con el motivo; nunca lanza error. 137 tests pasan
     (+1 saltado); mutante "ignorar el código de salida" detectado.
     Red de seguridad pendiente: alerta de sandbox huérfano (paso 5).
-  2. HECHO (sin commit; falta verlo en el clúster): métricas de la API
+  2. HECHO (commit cfcf98a, verificado en el clúster: 18/18 targets,
+     los 2 pods de la API medidos, /health p95 = 0,044 s): métricas de la API
      con prometheus_client (metrics.py): Counter
      deadcode_http_requests_total{method,route,status} y Histogram
      deadcode_http_request_duration_seconds{method,route}, medidos en
