@@ -42,6 +42,8 @@ metrics:
   serviceMonitor:
     enabled: true
     interval: 15s                 # cada cuánto Prometheus lee /metrics
+  dashboard:
+    enabled: true                 # dashboards/deadcode.json -> Grafana
 
 postgres:
   image: postgres:17-alpine

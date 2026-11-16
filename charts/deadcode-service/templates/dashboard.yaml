@@ -1,0 +1,21 @@
+{{- if .Values.metrics.dashboard.enabled }}
+# Dashboard de Grafana, guardado en git (dashboards/deadcode.json).
+# El "sidecar" de Grafana (kube-prometheus-stack) busca en TODOS los
+# namespaces ConfigMaps con la etiqueta grafana_dashboard: "1" y los
+# carga solo. Para cambiar el dashboard: editar el JSON y hacer commit
+# (desde la web de Grafana no se puede guardar: git manda).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: deadcode-dashboard
+  labels:
+    {{- include "deadcode.labels" (dict "root" . "component" "monitoring") | nindent 4 }}
+    grafana_dashboard: "1"
+data:
+  # .Files.Get copia el archivo TAL CUAL (sin pasar por las plantillas de
+  # Helm): las llaves dobles de Grafana dentro del JSON no se tocan.
+  # (OJO: aquí no se pueden escribir llaves dobles ni en comentarios:
+  # Helm procesa TODO el archivo de plantilla, comentarios incluidos.)
+  deadcode.json: |-
+{{ .Files.Get "dashboards/deadcode.json" | indent 4 }}
+{{- end }}

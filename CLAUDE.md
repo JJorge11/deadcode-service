@@ -219,7 +219,9 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
      del Service con nombre "http" + templates/servicemonitor.yaml
      (metrics.serviceMonitor.enabled/interval 15s). 144 tests pasan
      (+1 saltado); mutante "URL real como etiqueta" detectado.
-  3. HECHO (sin commit; falta verlo en el clúster): métricas de los
+  3. HECHO (commit 70e6fa5, verificado en el clúster: source_up=1 en
+     los 2 pods, fallos repo_no_existe/inesperado, 11 de 15 análisis en
+     <10 s; los lentos y los "inesperado" son del incidente): métricas de los
      análisis (analysis_metrics.py). NO se cuentan en el worker: RQ hace
      fork y lo que cuenta la copia se pierde. Se leen de la fuente de
      verdad (Postgres + Redis) en cada visita a /metrics de la API
@@ -234,6 +236,22 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
      vacío para no consultar Postgres al importar. Sandboxes vivos: ya
      los mide kube-state-metrics. 156 tests pasan (+1 saltado); mutantes
      "duración incluye fallidos" y "todo es otro" detectados.
+  4. HECHO (sin commit; falta verlo en Grafana): dashboard
+     "deadcode-service" (uid deadcode-overview), 13 paneles en 3 filas:
+     API (peticiones/s sin /health, % 5xx, p95), análisis (cola,
+     pendiente más viejo, estados, fallos por motivo, por hora, p50/p95)
+     y sandboxes/salud (sandboxes vivos con kube_pod_info, source_up,
+     reinicios, memoria). FUENTE: scripts/make_dashboard.py (Python con
+     comentarios) -> --write genera charts/deadcode-service/dashboards/
+     deadcode.json -> templates/dashboard.yaml lo mete en un ConfigMap con
+     grafana_dashboard: "1" -> el sidecar de Grafana lo carga (busca en
+     TODOS los namespaces). editable: false: git manda. Cada consulta se
+     probó antes contra el Prometheus real. tests/test_dashboard.py: JSON
+     al día con el script, ids únicos y cada métrica deadcode_* existe
+     (nombre EXACTO: la 1a versión usaba "contiene" y dejaba pasar
+     queue_job). 159 tests (+1 saltado).
+     ⚠️ Helm procesa TODO el archivo de plantilla, también los
+     comentarios: escribir llaves dobles en un comentario rompe el chart.
 - Reinicio del PC: Docker Desktop NO arranca solo. Abrirlo -> el
   clúster kind vuelve solo (~1-2 min, verificado) -> Compose NO
   (docker compose up -d). Los datos de Postgres sobreviven.
@@ -473,8 +491,11 @@ positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
 - argocd/monitoring.yaml: Application de monitoreo (chart oficial
   kube-prometheus-stack + nuestros ajustes; se aplica una vez a mano)
 - charts/deadcode-service/: chart de Helm (Chart.yaml, values.yaml,
-  templates/ con config, api, worker, postgres, redis, sandbox y
-  _helpers.tpl)
+  templates/ con config, api, worker, postgres, redis, sandbox,
+  servicemonitor, dashboard y _helpers.tpl; dashboards/deadcode.json
+  GENERADO por scripts/make_dashboard.py)
+- scripts/make_dashboard.py: fuente del dashboard de Grafana (cambiar
+  aquí y ejecutar: uv run python scripts/make_dashboard.py --write)
 - .env.example: plantilla de variables (copiar a .env)
 
 ## Comandos útiles
