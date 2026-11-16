@@ -178,7 +178,10 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
 - Flujo de despliegue ACTUAL: git push -> CI (tests, build, helm) ->
   publish (imagen sha-X) -> deploy (bot: tag sha-X) -> ArgoCD -> clúster.
   Nadie ejecuta helm ni kubectl para desplegar.
-- Etapa 6 (Observabilidad) EN CURSO. Plan: 1) Prometheus + Grafana con
+- Etapa 6 (Observabilidad) COMPLETA (los 5 pasos verificados en vivo;
+  destino de notificaciones de Alertmanager decidido NO configurarlo por
+  ahora: las alertas se ven en su web y en Grafana; retomar en la nube).
+  Plan original: 1) Prometheus + Grafana con
   ArgoCD; 2) métricas propias en la API; 3) métricas de análisis (cola,
   duración, fallos por motivo); 4) dashboard propio en git; 5) 1-2
   alertas (sandbox huérfano, disco de Postgres).
@@ -253,7 +256,20 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
      queue_job). 159 tests (+1 saltado).
      ⚠️ Helm procesa TODO el archivo de plantilla, también los
      comentarios: escribir llaves dobles en un comentario rompe el chart.
-  5. HECHO (sin commit; falta aplicar monitoring.yaml y verlo en vivo):
+  5. HECHO (commit 7f9e6f2 + kubectl apply de monitoring.yaml).
+     Verificado en vivo: promtool en el CI (5 reglas, SUCCESS); las 5
+     reglas cargadas (tardan ~1 min tras el sync); Prometheus conectado
+     a Alertmanager (se apagó PrometheusNotConnectedToAlertmanagers);
+     Alertmanager usa ~23 MiB (límite 128Mi, holgado); base = 7,5 MiB
+     (0,74% del disco). PRUEBA REAL: pod falso en deadcode-sandboxes
+     (cumpliendo restricted) -> pending a los 5,3 min -> firing y
+     recibida por Alertmanager a los 6,3 min (texto correcto: "lleva 6m
+     7s vivo") -> borrado el pod, resuelta en <1 min. Única alerta
+     activa: Watchdog (siempre encendida A PROPÓSITO: si deja de llegar,
+     el monitoreo mismo está roto). Las tildes se ven como "Ã©" en
+     PowerShell/Git Bash, pero los datos están bien (verificado byte a
+     byte). Pendiente opcional: destino de notificaciones.
+     Detalle:
      alertas. Reglas en charts/deadcode-service/alerts/deadcode.rules.yaml
      (formato Prometheus) -> templates/alerts.yaml las mete en un
      PrometheusRule (metrics.alerts.enabled). 5 reglas: DeadcodeAPICaida
@@ -574,6 +590,9 @@ positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
   / Grafana, contraseña (PowerShell):
     [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String((kubectl get secret grafana-admin -n monitoring -o jsonpath='{.data.admin-password}')))
   / Prometheus: kubectl port-forward -n monitoring svc/monitoring-kube-prometheus-prometheus 9090:9090  -> http://127.0.0.1:9090
+    (alertas: http://127.0.0.1:9090/alerts)
+  / Alertmanager: kubectl port-forward -n monitoring svc/monitoring-kube-prometheus-alertmanager 9093:9093  -> http://127.0.0.1:9093
+  / probar las alertas: docker run --rm -v "${PWD}:/w" -w /w --entrypoint promtool quay.io/prometheus/prometheus:v3.16.0 test rules tests/alerts/deadcode.rules.test.yaml
   / probar una imagen local SIN publicarla (OJO: con ArgoCD activo, selfHeal
     lo revertiría; antes quitar "automated" de la Application):
     docker build -t deadcode-service:prueba . ; kind load docker-image deadcode-service:prueba --name deadcode
