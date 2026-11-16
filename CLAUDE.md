@@ -299,8 +299,25 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   clúster kind vuelve solo (~1-2 min, verificado) -> Compose NO
   (docker compose up -d). Los datos de Postgres sobreviven.
 - Nivel 2 (coverage.py) EN CURSO. Paso 1 (explorar a mano) HECHO: ver
-  "Aprendizajes de coverage.py". Siguiente: paso 2 (dependencias con la
-  opción A: pod de descarga con internet pero sin red interna).
+  "Aprendizajes de coverage.py". Paso 2 (dependencias, opción A: pod de
+  descarga con internet pero sin red interna), en partes:
+  2.1 HECHO: dependencies.py (pyproject.toml -> lista de requisitos,
+      validados con "packaging", ahora dependencia de la app; RECHAZA
+      URLs directas "pkg @ ..."; coverage fija ==7.17.3; máx. 100) y
+      downloader_main.py (stdin .tar.gz -> stdout .tar con
+      resultado.json PRIMERO + requirements.txt + wheels/; solo lee el
+      pyproject.toml de la RAÍZ sin escribir a disco; pip del sistema
+      /usr/local/bin/python3 con --isolated --only-binary=:all:
+      --index-url PyPI; máx. 150 MB, 180 s). 32 tests nuevos (pip
+      simulado), 193 pasan (+1 saltado); mutantes detectados (URL,
+      ciclos, coverage del repo, subcarpeta, tamaño, --isolated).
+      Prueba real en contenedor nobody/solo lectura CON red:
+      itsdangerous 10 wheels 2,5 MB 6 s; requests 33 / 11 MB / 16 s;
+      este repo 39 / 18 MB / 21 s; URL directa y paquete inexistente
+      -> error claro.
+  2.2 SIGUIENTE: NetworkPolicy para los pods de descarga (internet sí,
+      direcciones privadas no) + portero + verificación en vivo.
+  2.3 sandbox.py lanza el pod de descarga.
 - Pendiente después: dashboard, README.
 - Pendiente: dashboard simple (el usuario tuvo dificultad usando /docs
   para consultar resultados: copiar ids y leer JSON es incómodo).
@@ -550,6 +567,10 @@ cambiar el proyecto) con itsdangerous, click, requests y este repo.
   (stdin .tar.gz -> stdout JSON)
 - src/deadcode_service/wait_no_network.py: "portero" (initContainer)
   del sandbox en K8s: confirma que no hay red antes del análisis
+- src/deadcode_service/dependencies.py: requisitos de test de un repo
+  (lee su pyproject.toml, nunca ejecuta nada; nivel 2)
+- src/deadcode_service/downloader_main.py: programa DENTRO del pod de
+  descarga (stdin .tar.gz -> stdout .tar con las wheels; nivel 2)
 - src/deadcode_service/worker.py: worker RQ que escucha la cola
 - src/deadcode_service/metrics.py: métricas para Prometheus (GET
   /metrics + middleware que cuenta y mide cada petición)
