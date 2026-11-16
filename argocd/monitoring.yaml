@@ -1,0 +1,100 @@
+# Application de ArgoCD: monitoreo (Prometheus + Grafana).
+# Usa el chart OFICIAL kube-prometheus-stack (no uno nuestro), con nuestros
+# ajustes en "valuesObject". Se aplica UNA vez a mano:
+#   kubectl apply -f argocd/monitoring.yaml
+#
+# Antes, crear el namespace y la contraseña de Grafana (NO va en git):
+# ver "Comandos útiles" en CLAUDE.md.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring
+  namespace: argocd
+  # Sin finalizer (igual que "deadcode"): borrar esta Application NO
+  # borra Prometheus ni sus datos.
+spec:
+  project: default
+
+  # QUÉ: chart kube-prometheus-stack, versión FIJA (como las imágenes).
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: 93.3.0
+    helm:
+      releaseName: monitoring
+      valuesObject:
+        # --- Partes de Kubernetes que en kind NO se pueden medir ---------
+        # Escuchan solo en 127.0.0.1 dentro de su nodo: Prometheus no
+        # llega y las marcaría "caídas" para siempre (falsas alarmas).
+        kubeEtcd: {enabled: false}
+        kubeControllerManager: {enabled: false}
+        kubeScheduler: {enabled: false}
+        kubeProxy: {enabled: false}
+
+        # Alertmanager (envía avisos): lo activamos en el paso de alertas.
+        alertmanager: {enabled: false}
+
+        grafana:
+          # Contraseña desde un Secret creado por comando (si no, sería
+          # "prom-operator", que sabe todo el mundo).
+          admin:
+            existingSecret: grafana-admin
+            userKey: admin-user
+            passwordKey: admin-password
+          # Su base interna (SQLite) en RAM, no en disco: en kind+WSL2 el
+          # disco es lento y cada "migración" del primer arranque tardaba
+          # ~1 s (cientos de ellas). No se pierde nada importante: los
+          # dashboards y la conexión a Prometheus vienen de ConfigMaps.
+          persistence:
+            inMemory:
+              enabled: true
+              sizeLimit: 64Mi
+          # "¿Terminaste de arrancar?": hasta 5 min (30 x 10 s). Mientras
+          # tanto NO se aplica la livenessProbe, que antes lo mataba a
+          # mitad del arranque (reinicios en bucle).
+          startupProbe:
+            httpGet: {path: /api/health, port: grafana}
+            periodSeconds: 10
+            failureThreshold: 30
+          # Grafana 13 usa ~400-500Mi. Con 256/384Mi moría (OOMKilled) y,
+          # justo antes, Linux sacaba su programa de la RAM y lo releía del
+          # disco sin parar (18 GB leídos): eso saturó el disco de TODO el
+          # clúster (etcd lento -> API caída -> otros pods fallando).
+          resources:
+            requests: {cpu: 50m, memory: 384Mi}
+            limits: {memory: 768Mi}   # incluye la base en RAM
+
+        prometheus:
+          prometheusSpec:
+            # Encontrar TODOS los ServiceMonitor del clúster (también los
+            # de nuestra app, más adelante), no solo los de este chart.
+            serviceMonitorSelectorNilUsesHelmValues: false
+            podMonitorSelectorNilUsesHelmValues: false
+            ruleSelectorNilUsesHelmValues: false
+            # Historia: 7 días o 1,5 GB (lo que llegue primero).
+            retention: 7d
+            retentionSize: 1500MB
+            # Disco propio: reiniciar Prometheus no borra los gráficos.
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  accessModes: [ReadWriteOnce]
+                  resources:
+                    requests: {storage: 2Gi}
+            resources:
+              requests: {cpu: 200m, memory: 512Mi}
+              limits: {memory: 1Gi}
+
+  # DÓNDE: este clúster, namespace "monitoring" (creado a mano).
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      # Las CRDs (nuevos "tipos" de objeto, como ServiceMonitor) son tan
+      # grandes que "kubectl apply" normal falla; ServerSideApply no.
+      - ServerSideApply=true

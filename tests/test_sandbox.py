@@ -209,7 +209,13 @@ def fake_kubectl(monkeypatch):
     monkeypatch.setattr(sandbox, "SANDBOX_MODE", "kubernetes")
     calls = []
 
-    def install(returncode=0, stdout=b"", timeout=False, pod_status=None, delete_fails=False):
+    monkeypatch.setattr(sandbox.time, "sleep", lambda seconds: None)  # sin esperas reales
+
+    def install(returncode=0, stdout=b"", timeout=False, pod_status=None, delete_fails=False, delete_results=()):
+        """delete_results: respuestas de cada intento de borrado, en orden:
+        un código de salida (int) o "timeout". Después del último: 0."""
+        pending_deletes = list(delete_results)
+
         def fake_run(command, **kwargs):
             calls.append((command, kwargs))
             action = command[1]
@@ -222,7 +228,11 @@ def fake_kubectl(monkeypatch):
             if action == "delete":
                 if delete_fails:
                     raise subprocess.TimeoutExpired(command, 30)
-                return subprocess.CompletedProcess(command, 0, b"", b"")
+                result = pending_deletes.pop(0) if pending_deletes else 0
+                if result == "timeout":
+                    raise subprocess.TimeoutExpired(command, 30)
+                stderr = b"" if result == 0 else b"Unable to connect to the server: EOF"
+                return subprocess.CompletedProcess(command, result, b"", stderr)
             raise AssertionError(f"comando inesperado: {command}")
 
         monkeypatch.setattr(sandbox.subprocess, "run", fake_run)
@@ -305,6 +315,32 @@ def test_kubernetes_fallo_al_borrar_no_tapa_el_resultado(fake_kubectl):
     fake_kubectl(stdout=json.dumps({"ok": True, "result": {"commit": "abc"}}).encode(), delete_fails=True)
 
     assert sandbox.run(TARBALL) == {"commit": "abc"}
+
+
+_OK = json.dumps({"ok": True, "result": {"commit": "abc"}}).encode()
+
+
+def test_kubernetes_reintenta_borrar_si_la_api_falla_un_momento(fake_kubectl, caplog):
+    """Lo que pasó de verdad: la API de Kubernetes cayó unos segundos,
+    "kubectl delete" terminó con código 1 y el pod quedó huérfano."""
+    calls = fake_kubectl(stdout=_OK, delete_results=[1, "timeout", 0])
+
+    assert sandbox.run(TARBALL) == {"commit": "abc"}
+
+    assert _actions(calls) == ["run", "delete", "delete", "delete"]
+    assert "No se pudo borrar" not in caplog.text  # al final lo logró: sin aviso
+
+
+def test_kubernetes_si_nunca_puede_borrar_lo_avisa_en_el_log(fake_kubectl, caplog):
+    """Antes, un código != 0 de kubectl pasaba en SILENCIO (sin log)."""
+    calls = fake_kubectl(stdout=_OK, delete_results=[1] * sandbox.DELETE_ATTEMPTS)
+
+    assert sandbox.run(TARBALL) == {"commit": "abc"}  # el resultado no se pierde
+
+    assert _actions(calls).count("delete") == sandbox.DELETE_ATTEMPTS  # se rinde
+    pod = _pod_name(calls)
+    assert f"No se pudo borrar el pod de sandbox {pod}" in caplog.text
+    assert "Unable to connect to the server" in caplog.text  # con el motivo
 
 
 def test_fallo_inesperado_no_se_confunde_con_error_del_repo():

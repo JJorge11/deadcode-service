@@ -28,6 +28,7 @@ import json
 import logging
 import os
 import subprocess
+import time
 import uuid
 
 from deadcode_service import sandbox_main
@@ -55,6 +56,10 @@ K8S_STARTUP_SECONDS = 30
 # kubectl guarda una caché en la carpeta personal; en el worker el disco
 # es de solo lectura, así que la ponemos en /tmp.
 KUBECTL_CACHE_DIR = "/tmp/.kube-cache"
+# Borrar el pod: si la API de Kubernetes falla un momento, reintentar.
+# (Pasó de verdad: con la API caída unos segundos, un pod quedó huérfano.)
+DELETE_ATTEMPTS = 3
+DELETE_RETRY_SECONDS = 2
 
 
 class AnalysisTimeoutError(AnalysisError):
@@ -268,16 +273,34 @@ def _pod_failure_reason(pod_name: str) -> str | None:
     return None
 
 
-def _delete_pod(pod_name: str) -> None:
-    """Borra el pod. Nunca lanza error: no debe tapar el error original."""
-    try:
-        subprocess.run(
-            _kubectl("delete", "pod", pod_name, "--ignore-not-found", "--wait=false"),
-            capture_output=True,
-            timeout=30,
-        )
-    except (subprocess.TimeoutExpired, OSError):
-        logger.warning("No se pudo borrar el pod de sandbox %s", pod_name)
+def _delete_pod(pod_name: str) -> bool:
+    """Borra el pod, con reintentos. Devuelve True si lo logró.
+
+    Nunca lanza error: no debe tapar el resultado ni el error original.
+    OJO: subprocess.run NO lanza error si kubectl falla (código != 0),
+    solo lo devuelve: hay que revisarlo, o el fallo pasa en silencio.
+    """
+    problem = ""
+    for attempt in range(1, DELETE_ATTEMPTS + 1):
+        try:
+            proc = subprocess.run(
+                _kubectl("delete", "pod", pod_name, "--ignore-not-found", "--wait=false"),
+                capture_output=True,
+                timeout=30,
+            )
+            if proc.returncode == 0:
+                return True
+            problem = f"código {proc.returncode}: {proc.stderr.decode(errors='replace').strip()}"
+        except (subprocess.TimeoutExpired, OSError) as exc:
+            problem = type(exc).__name__
+        if attempt < DELETE_ATTEMPTS:
+            time.sleep(DELETE_RETRY_SECONDS)
+
+    logger.warning(
+        "No se pudo borrar el pod de sandbox %s tras %d intentos (%s)",
+        pod_name, DELETE_ATTEMPTS, problem,
+    )
+    return False
 
 
 def _run_in_kubernetes(tarball: bytes) -> dict:

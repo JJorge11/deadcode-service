@@ -141,7 +141,7 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
 - Pendiente de seguridad: no hay límite de procesos por pod en el
   sandbox de K8s (podPidsLimit del kubelet, se configura al crear el
   clúster en kind-config.yaml).
-- Etapa 5 (GitOps con ArgoCD) EN CURSO. Plan:
+- Etapa 5 (GitOps con ArgoCD) COMPLETA. Pasos:
   1. HECHO: ArgoCD v3.6.1 instalado con el manifiesto oficial
      (kubectl apply --server-side) en el namespace "argocd" (7 pods).
      Web por port-forward (https://127.0.0.1:8443), usuario admin,
@@ -165,14 +165,47 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
      Refresh o kubectl annotate application deadcode -n argocd
      argocd.argoproj.io/refresh=normal --overwrite. Volver atrás:
      git revert (ce78a98) + refresh -> 2 réplicas en 4 s.
-  4. EN PRUEBA: job "deploy" en ci.yml (needs: publish; solo push a
+  4. HECHO: job "deploy" en ci.yml (needs: publish; solo push a
      main; único con contents: write; concurrency "deploy"): escribe
      tag: sha-<7 chars> en values.yaml con sed (falla si no encuentra
      la línea), commit como github-actions[bot], pull --rebase y push.
      Sin bucle: los commits hechos con GITHUB_TOKEN no disparan
      workflows. ⚠️ El robot hace commits en main: SIEMPRE `git pull`
      antes de trabajar. Todo push a main redespliega (aunque solo
-     cambie un .md): aceptable por ahora.
+     cambie un .md): aceptable por ahora. Verificado: push 0f7478e ->
+     5 jobs verdes -> commit del bot 0eb4a58 (tag sha-0f7478e) -> 0 CI
+     lanzados por él -> ArgoCD Synced/Healthy -> análisis real OK.
+- Flujo de despliegue ACTUAL: git push -> CI (tests, build, helm) ->
+  publish (imagen sha-X) -> deploy (bot: tag sha-X) -> ArgoCD -> clúster.
+  Nadie ejecuta helm ni kubectl para desplegar.
+- Etapa 6 (Observabilidad) EN CURSO. Plan: 1) Prometheus + Grafana con
+  ArgoCD; 2) métricas propias en la API; 3) métricas de análisis (cola,
+  duración, fallos por motivo); 4) dashboard propio en git; 5) 1-2
+  alertas (sandbox huérfano, disco de Postgres).
+  1. HECHO (sin commit): Application "monitoring" (argocd/monitoring.yaml)
+     con el chart oficial kube-prometheus-stack 93.3.0 (versión fija),
+     namespace "monitoring", Secret "grafana-admin" creado por comando.
+     Apagados etcd/scheduler/controller-manager/kube-proxy (en kind
+     escuchan en 127.0.0.1: falsas alarmas) y Alertmanager (paso 5).
+     Prometheus: PVC 2Gi, 7 días. Verificado: 16/16 targets up, 24
+     dashboards, login OK y "prom-operator" rechazada.
+     ⚠️ INCIDENTE al instalar: Grafana 13 con límite 256Mi -> casi sin
+     memoria, Linux releía su programa del disco sin parar (18 GB
+     leídos) -> disco de WSL2 saturado -> etcd lento -> API de K8s caída
+     (apiserver/scheduler/controller-manager reiniciados) -> un análisis
+     falló (kubectl run: timeout) y otro tardó 84 s. Arreglo: límite
+     768Mi (usa ~580), base de Grafana en RAM (inMemory) y startupProbe
+     de 5 min. Lección: MEDIR la memoria real antes de fijar límites.
+     Tras arreglarlo: análisis OK (21 hallazgos) en ~21 s (antes ~7 s;
+     el disco aún se recuperaba: volver a medir).
+  - BUG encontrado: sandbox._delete_pod no revisaba el código de salida
+    de "kubectl delete" (subprocess.run NO lanza error si el comando
+    falla): con la API caída, el pod quedó huérfano SIN log (pasó con
+    sandbox-67cfe200cec1; borrado a mano). ARREGLADO (sin commit):
+    revisa returncode, 3 intentos con 2 s de pausa y, si todos fallan,
+    log de aviso con el motivo; nunca lanza error. 137 tests pasan
+    (+1 saltado); mutante "ignorar el código de salida" detectado.
+    Red de seguridad pendiente: alerta de sandbox huérfano (paso 5).
 - Pendiente después: nivel 2 (coverage.py), dashboard, README.
 - Pendiente: dashboard simple (el usuario tuvo dificultad usando /docs
   para consultar resultados: copiar ids y leer JSON es incómodo).
@@ -401,6 +434,8 @@ positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
 - k8s/kind-config.yaml: definición del clúster local (kind)
 - argocd/deadcode.yaml: Application de ArgoCD (qué chart vigilar y dónde
   desplegarlo; se aplica una vez a mano)
+- argocd/monitoring.yaml: Application de monitoreo (chart oficial
+  kube-prometheus-stack + nuestros ajustes; se aplica una vez a mano)
 - charts/deadcode-service/: chart de Helm (Chart.yaml, values.yaml,
   templates/ con config, api, worker, postgres, redis, sandbox y
   _helpers.tpl)
@@ -450,6 +485,15 @@ positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
   / ArgoCD, abrir la web (dejar la terminal abierta): kubectl port-forward -n argocd svc/argocd-server 8443:443  -> https://127.0.0.1:8443
   / ArgoCD, contraseña de admin (PowerShell):
     [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String((kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath='{.data.password}')))
+  / Monitoreo, primera vez (antes de aplicar argocd/monitoring.yaml):
+    kubectl create namespace monitoring
+    $pw = -join ((48..57)+(65..90)+(97..122) | Get-Random -Count 24 | % {[char]$_})
+    kubectl create secret generic grafana-admin -n monitoring --from-literal=admin-user=admin --from-literal=admin-password=$pw
+    kubectl apply -f argocd/monitoring.yaml
+  / Grafana (dejar la terminal abierta): kubectl port-forward -n monitoring svc/monitoring-grafana 3000:80  -> http://127.0.0.1:3000 (usuario admin)
+  / Grafana, contraseña (PowerShell):
+    [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String((kubectl get secret grafana-admin -n monitoring -o jsonpath='{.data.admin-password}')))
+  / Prometheus: kubectl port-forward -n monitoring svc/monitoring-kube-prometheus-prometheus 9090:9090  -> http://127.0.0.1:9090
   / probar una imagen local SIN publicarla (OJO: con ArgoCD activo, selfHeal
     lo revertiría; antes quitar "automated" de la Application):
     docker build -t deadcode-service:prueba . ; kind load docker-image deadcode-service:prueba --name deadcode
