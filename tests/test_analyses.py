@@ -3,6 +3,7 @@
 import uuid
 
 import psycopg
+import pytest
 import redis
 from rq import Queue
 from rq.job import Job
@@ -31,13 +32,14 @@ def test_post_crea_fila_queued_y_encola_job(client, redis_client):
     # ...y lleva la función y los argumentos correctos.
     job = Job.fetch(analysis_id, connection=redis_client)
     assert job.func_name == "deadcode_service.tasks.analyze_repo"
-    assert list(job.args) == [analysis_id, REPO]
+    assert list(job.args) == [analysis_id, REPO, False]  # nivel 1 por defecto
+    assert job.timeout == tasks.LEVEL1_JOB_TIMEOUT  # no los 180 s de RQ
 
 
 def test_job_encolado_se_ejecuta_y_completa_el_analisis(client, redis_client, monkeypatch):
     """De punta a punta: la API encola y ejecutamos el job tal como
     quedó guardado en Redis (job.perform() es lo que hace el worker)."""
-    monkeypatch.setattr(tasks, "_run_analysis", lambda repo_url: {"dead_code": []})
+    monkeypatch.setattr(tasks, "_run_analysis", lambda repo_url, dynamic=False: {"dead_code": []})
     analysis_id = client.post("/analyses", json={"repo_url": REPO}).json()["id"]
 
     Job.fetch(analysis_id, connection=redis_client).perform()
@@ -113,3 +115,21 @@ def test_listar_devuelve_del_mas_nuevo_al_mas_antiguo(client):
     ids = [item["id"] for item in client.get("/analyses").json()]
 
     assert ids == [second, first]
+
+
+def test_post_nivel_2_encola_con_dynamic_y_mas_plazo(client, redis_client):
+    response = client.post("/analyses", json={"repo_url": REPO, "dynamic": True})
+
+    assert response.status_code == 202
+    assert response.json()["dynamic"] is True
+    job = Job.fetch(response.json()["id"], connection=redis_client)
+    assert list(job.args)[2] is True
+    assert job.timeout == tasks.LEVEL2_JOB_TIMEOUT
+
+
+@pytest.mark.parametrize("value", ["si", "true", 1, None])
+def test_post_dynamic_solo_acepta_true_o_false(client, value):
+    response = client.post("/analyses", json={"repo_url": REPO, "dynamic": value})
+
+    assert response.status_code == 422
+    assert db.list_analyses() == []

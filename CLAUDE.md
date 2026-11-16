@@ -385,6 +385,44 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
       ⚠️ Para el paso 5: RQ corta cada trabajo a los 180 s POR DEFECTO
       (no hay job_timeout): el nivel 2 completo puede tardar ~10 min ->
       fijar job_timeout al encolar.
+      Commit 2f107a8 (2.2 a 3.2 juntos): CI verde, ArgoCD adoptó la
+      NetworkPolicy aplicada a mano (tracking-id), alerta en 600 s,
+      análisis nivel 1 OK (21, 8,3 s).
+  Paso 4 HECHO (sin commit): analyzers/python_cross.py, PURO (solo
+  compara números; el worker no lee código ajeno). Usa "last_line" que
+  ya entregaba Vulture. Cuerpo = line+1 .. last_line; solo function,
+  method y property (import/variable/attribute/class: None). executed
+  True -> priority low + FALSE_POSITIVE_REASON; False -> medium sube a
+  high, high/low igual, motivo + ". Además, los tests del repo nunca lo
+  ejecutaron."; None -> igual. Guarda "static_priority" (lo que dijo
+  Vulture) y reordena (sort_findings, sacada de python_classify).
+  summarize_cross -> {confirmed, false_positives, not_applicable}.
+  Con datos REALES (Vulture en contenedor + coverage de la 3.1):
+  itsdangerous 0/0/21; click 6 confirmados, 5 falsos positivos
+  (_wrap_chunks high -> low); requests 15 / 7 (MockRequest.get_full_url
+  & co. y propiedades -> low; _find high confirmado); high de requests:
+  5 -> 19. 21 tests, 266 pasan (+4 saltados); 5 mutantes detectados.
+  Paso 5 HECHO (sin commit): POST /analyses acepta "dynamic": true
+  (Field strict: solo true/false; responde "dynamic"). Se encola
+  analyze_repo(id, url, dynamic) con job_timeout = LEVEL1 300 s /
+  LEVEL2 1200 s (antes NO había: RQ cortaba a los 180 s). dynamic con
+  valor por defecto False: los trabajos viejos (2 argumentos) siguen.
+  tasks._add_dynamic: Vulture -> descarga -> tests -> cruce; resumen
+  recalculado; result["dynamic"] = {status finished, coverage_percent,
+  tests {summary, exit_code, timed_out}, cross} o {status failed,
+  error}. Si el nivel 2 falla (esperado O bug), el análisis queda
+  "finished" con lo de Vulture: el nivel 2 nunca hace perder el 1.
+  Sin cambio de tabla (el nivel viaja en el trabajo y en el resultado).
+  Alerta DeadcodeWorkerAtascado subida a > 1500 s (cuenta el análisis
+  EN CURSO, y un nivel 2 puede durar 20 min); test promtool con "20 min
+  = normal". 277 tests (+4 saltados); 5 mutantes detectados. EN VIVO
+  (tasks._run_analysis desde el PC, imagen nivel2): click 67 s (6
+  confirmados, 5 falsos positivos); itsdangerous 47 s; este repo: nivel
+  2 falla con motivo claro y el nivel 1 llega (7 hallazgos) pero tardó
+  258 s (en la 3.2 ~78 s): SIN EXPLICAR, revisar. 0 pods vivos.
+  SIGUIENTE: commit -> despliegue -> prueba por la API real; luego
+  paso 6 (métrica/panel del nivel 2) y mostrar el nivel 2 en el
+  dashboard web pendiente.
 - Pendiente después: dashboard, README.
 - Pendiente: dashboard simple (el usuario tuvo dificultad usando /docs
   para consultar resultados: copiar ids y leer JSON es incómodo).
@@ -627,6 +665,8 @@ cambiar el proyecto) con itsdangerous, click, requests y este repo.
   por framework (interfaz común: analyze(carpeta) -> dict)
 - src/deadcode_service/analyzers/python_classify.py: prioridad,
   ubicación, categoría y motivo de cada hallazgo
+- src/deadcode_service/analyzers/python_cross.py: cruce Vulture +
+  coverage (nivel 2): confirma o descarta cada hallazgo
 - src/deadcode_service/errors.py: AnalysisError (errores esperados)
 - src/deadcode_service/sandbox.py: lanza el contenedor desechable
   (lado worker) con todas las protecciones

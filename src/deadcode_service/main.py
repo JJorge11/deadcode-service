@@ -12,7 +12,7 @@ from rq import Queue
 
 from deadcode_service import db
 from deadcode_service.metrics import setup_metrics
-from deadcode_service.tasks import QUEUE_NAME, analyze_repo
+from deadcode_service.tasks import QUEUE_NAME, analyze_repo, job_timeout
 from deadcode_service.validation import MAX_URL_LENGTH, normalize_github_url
 
 logger = logging.getLogger("uvicorn.error")
@@ -104,6 +104,14 @@ class AnalysisRequest(BaseModel):
         max_length=MAX_URL_LENGTH,
         examples=["https://github.com/psf/requests"],
     )
+    # Nivel 2: además corre los tests del repo con coverage (más lento:
+    # hasta ~15 min) y confirma o descarta cada hallazgo de Vulture.
+    # strict: solo true/false de verdad (no "si", 1, etc.).
+    dynamic: bool = Field(
+        default=False,
+        strict=True,
+        description="Nivel 2: correr los tests del repo con coverage.py (solo en Kubernetes)",
+    )
 
     @field_validator("repo_url")
     @classmethod
@@ -137,13 +145,17 @@ def create_analysis(request: AnalysisRequest):
     # 2) Después el job en Redis, con el mismo id que la fila.
     try:
         queue = Queue(QUEUE_NAME, connection=get_redis())
-        queue.enqueue(analyze_repo, str(analysis_id), repo_url, job_id=str(analysis_id))
+        queue.enqueue(
+            analyze_repo, str(analysis_id), repo_url, request.dynamic,
+            job_id=str(analysis_id),
+            job_timeout=job_timeout(request.dynamic),  # sin esto RQ corta a los 180 s
+        )
     except redis.RedisError as exc:
         logger.warning("No se pudo encolar: %s", exc)
         db.mark_failed(analysis_id, "No se pudo encolar")
         raise HTTPException(status_code=503, detail="Cola no disponible")
 
-    return {"id": analysis_id, "status": "queued"}
+    return {"id": analysis_id, "status": "queued", "dynamic": request.dynamic}
 
 
 @app.get("/analyses")

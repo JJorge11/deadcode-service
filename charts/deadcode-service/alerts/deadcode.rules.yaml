@@ -38,12 +38,15 @@ groups:
             minutos: los análisis no se pueden crear ni consultar.
 
       - alert: DeadcodeWorkerAtascado
-        expr: max(deadcode_analyses_oldest_pending_seconds) > 600
+        # Cuenta también el análisis EN CURSO, y uno de nivel 2 (tests del
+        # repo) puede durar hasta 20 min (LEVEL2_JOB_TIMEOUT en tasks.py).
+        # Más de 25 min = algo se trabó de verdad.
+        expr: max(deadcode_analyses_oldest_pending_seconds) > 1500
         for: 2m
         labels:
           severity: warning
         annotations:
-          summary: Hay análisis esperando hace más de 10 minutos
+          summary: Hay análisis esperando hace más de 25 minutos
           description: >-
             El análisis pendiente más antiguo lleva
             {{ $value | humanizeDuration }} esperando. ¿Está vivo el worker?

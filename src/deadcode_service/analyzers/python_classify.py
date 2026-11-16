@@ -123,8 +123,12 @@ def classify(findings: list[dict], repo_dir: Path) -> list[dict]:
             }
         )
 
-    classified.sort(key=lambda f: (PRIORITY_ORDER[f["priority"]], -f["confidence"], f["file"], f["line"]))
-    return classified
+    return sort_findings(classified)
+
+
+def sort_findings(findings: list[dict]) -> list[dict]:
+    """Primero prioridad alta; luego más confianza; luego archivo y línea."""
+    return sorted(findings, key=lambda f: (PRIORITY_ORDER[f["priority"]], -f["confidence"], f["file"], f["line"]))
 
 
 def summarize(findings: list[dict]) -> dict:

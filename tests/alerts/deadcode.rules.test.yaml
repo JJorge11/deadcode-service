@@ -76,24 +76,27 @@ tests:
   - interval: 1m
     input_series:
       - series: 'deadcode_analyses_oldest_pending_seconds{pod="api-a"}'
-        values: '0+60x20'
+        values: '0+60x35'
       - series: 'deadcode_analyses_oldest_pending_seconds{pod="api-b"}'
-        values: '0+60x20'
+        values: '0+60x35'
     alert_rule_test:
-      - eval_time: 10m         # 600 s: justo en el límite, aún no
+      - eval_time: 20m         # un nivel 2 largo (20 min) es NORMAL: sin alerta
         alertname: DeadcodeWorkerAtascado
         exp_alerts: []
-      - eval_time: 12m         # > 600 s desde el minuto 11, pero for: 2m
+      - eval_time: 25m         # 1500 s: justo en el límite, aún no
         alertname: DeadcodeWorkerAtascado
         exp_alerts: []
-      - eval_time: 14m
+      - eval_time: 27m         # > 1500 s desde el minuto 26, pero for: 2m
+        alertname: DeadcodeWorkerAtascado
+        exp_alerts: []
+      - eval_time: 29m
         alertname: DeadcodeWorkerAtascado
         exp_alerts:
           - exp_labels:
               severity: warning
             exp_annotations:
-              summary: Hay análisis esperando hace más de 10 minutos
-              description: "El análisis pendiente más antiguo lleva 14m 0s esperando. ¿Está vivo el worker? kubectl logs -n deadcode deploy/worker"
+              summary: Hay análisis esperando hace más de 25 minutos
+              description: "El análisis pendiente más antiguo lleva 29m 0s esperando. ¿Está vivo el worker? kubectl logs -n deadcode deploy/worker"
 
   # --- Un sandbox normal (el más largo: tests, vive 6 min) y uno huérfano --
   # kube_pod_created = segundo en que nació el pod (aquí: 0, el inicio).
