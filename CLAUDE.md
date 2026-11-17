@@ -493,9 +493,87 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   hallazgos en el código (si no hay en el código: en todo el repo, sin
   "solo código"; sin hallazgos: "todas"). Antes arrancaba en "alta" con
   0. Verificado: markupsafe -> baja (6), este repo -> media (2).
-- Pendiente después: README.
-- Pendiente: README (se dejó para más adelante); migraciones con
-  Alembic cuando cambie la tabla.
+- Etapa 7 (nube, AWS + Terraform) EN CURSO. Decisiones (2026-11-17):
+  cuenta AWS NUEVA (no existía); presupuesto MÁXIMO 10 USD/mes (alerta
+  por correo); EKS creado y DESTRUIDO en cada sesión (terraform
+  destroy al terminar; ~0,25 USD/h encendido: control EKS 0,10 + 2
+  nodos + NAT + RDS; ~1 USD por sesión de 3 h; encendido todo el mes
+  serían ~180 USD). ⚠️ Usar SIEMPRE una versión de Kubernetes en
+  soporte ESTÁNDAR: en soporte extendido el control cuesta 0,60 USD/h
+  (6x). Cuenta: empezar en plan "Free" (nunca cobra; termina a los 6
+  meses o al agotar créditos -> cuenta cerrada, 90 días para pasar a
+  Paid o se borra todo). Docs oficiales: EC2, S3 y RDS "disponibles en
+  ambos planes"; EKS/VPC/NAT/IAM/Budgets NO se mencionan (no hay lista
+  completa). Se puede pasar de Free a Paid en cualquier momento
+  CONSERVANDO los créditos (al revés no). Plan: partes 0-2 en Free; al
+  llegar a EKS, intentar crearlo: si exige Paid, el usuario lo
+  actualiza. Créditos: 100 USD (+ hasta 100 por actividades); la doc se
+  contradice sobre si vencen a los 6 o 12 meses -> mirar la consola.
+  Ojo: unirse a AWS Organizations (o Control Tower) pasa a Paid solo.
+  CUENTA CREADA (2026-11-17): plan Gratis, 100 USD de crédito, el plan
+  termina el 17-may-2027 (182 días); región us-east-2 (Ohio). Usa la
+  "nueva experiencia de AWS" (consola simplificada por "Proyectos";
+  proyecto creado por AWS: "Whimsical Whiteboard", RENOMBRADO a
+  "DeadCode" — verificado con aws account get-account-information). NO se ejecutó el
+  setup del "AWS Agent Toolkit" (MCP de AWS): haría aws login como
+  root, daría al agente poder total y escribiría reglas genéricas en
+  este CLAUDE.md; la infra se crea SOLO con Terraform. Evaluar el MCP
+  más adelante en modo solo lectura.
+  Nueva experiencia (docs oficiales leídas): EKS, EC2, VPC, ELB, RDS,
+  S3, IAM, Budgets, CloudWatch, ECR, KMS y Secrets Manager están en el
+  Free Tier -> NO hace falta el plan Paid. NO soportados: IAM Identity
+  Center, Organizations, Transit Gateway, VPN. "Proyecto" = una cuenta
+  AWS (su equipo, su región); "Whimsical Whiteboard" es el primero
+  (renombrable; sugerido "deadcode-service"); el presupuesto y todo se
+  crea ahí. Región FIJA us-east-2 (sin multi-región). Sin usuarios IAM:
+  identidad con AWS Builder ID; terminal con `aws login` (12 h,
+  renovable 90 días). Duda: la doc dice que herramientas externas
+  pueden no soportar esas credenciales -> probar Terraform en la parte
+  1 (plan B: `aws configure export-credentials`). NO activar "advanced
+  features" (irreversible, exige Paid). Spend limit solo en Paid.
+  Presupuesto "deadcode-mensual" CREADO: 10 USD/mes recurrente, SIN
+  créditos (muestra el consumo real), alertas 50% y 80% real + 100%
+  previsto. Desde el 30-sep-2026 el correo de las alertas debe
+  VERIFICARSE (correo de AWS) o no llegan.
+  Parte 0 COMPLETA: MFA activado, correo verificado. Instalados con
+  winget: AWS CLI 2.40.2 (Amazon.AWSCLI, MSI oficial; trae `aws login`)
+  y Terraform 1.17.1 (Hashicorp.Terraform). Abrir terminal NUEVA para
+  que el PATH los encuentre.
+  `aws login --profile deadcode --region us-east-2` OK (la región NO
+  quedó guardada: se fijó con `aws configure set region us-east-2
+  --profile deadcode`). Identidad = rol AccountFullAccessRole (acceso
+  TOTAL: por eso todo pasa por Terraform revisado). Comprobar con:
+  aws sts get-caller-identity --profile deadcode. Un perfil por cada
+  proyecto AWS (otro proyecto = otro --profile).
+  El Agent Toolkit se instaló solo (13:29): 26 skills en
+  ~/.claude/skills (SE DEJAN, son guías) + MCP "aws-mcp" en
+  ~/.claude.json (QUITADO con `claude mcp remove aws-mcp -s user`; no
+  queremos un agente con acceso total actuando fuera de Terraform).
+  Parte 1 HECHA (sin commit): infra/aws/bootstrap/ (versions.tf,
+  main.tf, outputs.tf + .terraform.lock.hcl). Terraform 1.17 + proveedor
+  hashicorp/aws 6.73.0 (firmado), provider con profile "deadcode" y
+  region us-east-2, default_tags Project/ManagedBy/Component. Crea el
+  bucket del ESTADO de Terraform de las demás partes:
+  deadcode-tfstate-<id de cuenta> (id leído con data
+  aws_caller_identity, no escrito en el código): versiones, AES256,
+  bloqueo público total, versiones viejas se borran a los 90 días.
+  Es la ÚNICA pieza permanente (~0 USD) y tiene prevent_destroy =
+  true. Su propio estado vive en el PC (terraform.tfstate, ignorado:
+  huevo y gallina). Ciclo practicado: init -> plan (5 a crear) ->
+  apply -> verificado con aws s3api (us-east-2, Enabled, 4x True,
+  AES256, etiquetas) -> destroy (5 borrados; head-bucket 404) -> apply
+  de nuevo con prevent_destroy -> plan -destroy NEGADO ("Instance
+  cannot be destroyed"). RESUELTO: Terraform SÍ acepta las credenciales
+  de `aws login` (no hizo falta export-credentials). .gitignore:
+  .terraform/, *.tfstate*, *.tfvars, *.tfplan (el lock SÍ va a git).
+  ⚠️ PowerShell 5.1 parte "-out=x.tfplan": usar comillas '-out=x.tfplan'.
+  Plan: 0) cuenta + MFA + presupuesto con alertas, usuario sin root
+  para el día a día; 1) Terraform básico (plan/apply/destroy con algo
+  gratis); 2) red (VPC); 3) EKS + node pool aparte para sandboxes (PID
+  bajo); 4) RDS; 5) ArgoCD + monitoreo + análisis de punta a punta.
+- Pendiente: README (el usuario prefiere hacerlo más adelante, cuando
+  el proyecto esté más completo); migraciones con Alembic cuando cambie
+  la tabla.
 
 ## Decisiones
 <!-- Una línea por decisión: qué se eligió y por qué. -->
@@ -785,6 +863,8 @@ cambiar el proyecto) con itsdangerous, click, requests y este repo.
 - scripts/make_dashboard.py: fuente del dashboard de Grafana (cambiar
   aquí y ejecutar: uv run python scripts/make_dashboard.py --write)
 - .env.example: plantilla de variables (copiar a .env)
+- infra/aws/bootstrap/: Terraform del bucket S3 donde las demás partes
+  de la nube guardan su estado (permanente, prevent_destroy)
 
 ## Comandos útiles
 - Instalar dependencias (tras clonar o cambiar uv.lock): uv sync

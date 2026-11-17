@@ -218,3 +218,16 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Terraform
+#   .terraform/  = proveedores descargados (pesados, se bajan con terraform init)
+#   *.tfstate*   = el "cuaderno" de Terraform: puede tener datos sensibles,
+#                  NUNCA a git (vive en S3; el de bootstrap, solo en el PC)
+#   *.tfvars     = valores locales (podrían tener secretos)
+#   .terraform.lock.hcl SÍ va a git: fija las versiones exactas (como uv.lock)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfplan
+crash.log
