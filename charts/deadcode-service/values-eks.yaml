@@ -1,0 +1,22 @@
+# Lo que CAMBIA en EKS (AWS) respecto de values.yaml (kind). Helm aplica
+# primero values.yaml y encima este archivo: aquí va SOLO la diferencia.
+# Lo usa argocd/eks/deadcode.yaml (valueFiles). La etiqueta de la imagen
+# sigue en values.yaml: el bot del CI la actualiza para los dos clústeres.
+# ⚠️ Va en git: NUNCA contraseñas (el Secret se crea por comando).
+
+postgres:
+  # Base administrada (RDS, infra/aws/platform/rds.tf) en vez del StatefulSet.
+  enabled: false
+  # Dirección de RDS (terraform output db_endpoint). Es ESTABLE entre
+  # sesiones: <identificador>.<código de la cuenta y región>.rds.amazonaws.com.
+  # No es secreta: solo resuelve a una IP privada de la VPC.
+  host: deadcode.cbuo8kcs8pm1.us-east-2.rds.amazonaws.com
+  # RDS rechaza conexiones sin cifrar. "require" = cifrado sin verificar el
+  # certificado del servidor (viaja solo dentro de la VPC). Mejora futura:
+  # verify-full con el certificado raíz de RDS dentro de la imagen.
+  sslMode: require
+
+sandbox:
+  # Grupo de nodos con taint y límite de 128 procesos por pod
+  # (infra/aws/platform/sandbox_nodes.tf).
+  nodePool: sandbox

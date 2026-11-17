@@ -638,7 +638,7 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
       PowerShell 5.1 rompe comillas internas en argumentos de kubectl.
       Para la parte 5 (desplegar en EKS): values con sandbox.nodePool:
       "sandbox".
-  Parte 4 HECHA (sin commit): rds.tf. Postgres 17 (17.9; soporte estándar
+  Parte 4 HECHA (commit aafd933): rds.tf. Postgres 17 (17.9; soporte estándar
   hasta feb-2030) en db.t4g.micro (0,016 USD/h), gp3 20 GB cifrado, sin IP
   pública, una zona, engine_lifecycle_support = extended-support-disabled,
   sin backups ni snapshot final (se destruye cada sesión). Contraseña:
@@ -667,6 +667,27 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   incluido CoreDNS; la doc solo muestra editar el DaemonSet, verificar si
   el add-on administrado lo conserva). La prueba de la 3.1 engañó porque
   su primer intento (wget con DNS) llegó después de la ventana.
+  Parte 5 = la app completa en EKS, en 3 pasos:
+  5.1 HECHO (sin commit): el chart sirve para kind y EKS. Contraseña en
+      PGPASSWORD (la lee libpq) y DATABASE_URL SIN contraseña:
+      postgresql://$(POSTGRES_USER)@<host>:5432/$(POSTGRES_DB)?sslmode=<x>.
+      Motivo: la de RDS puede traer # ? % que rompen la URL (PROBADO contra
+      Compose: usuario temporal con "a#b?c%d:e[f]g&h$i!j*k" -> con
+      PGPASSWORD conecta, dentro de la URL ProgrammingError). values:
+      postgres.enabled (false = no crea Service/StatefulSet), postgres.host,
+      postgres.sslMode (prefer en kind). charts/deadcode-service/
+      values-eks.yaml = SOLO lo que cambia (RDS host estable
+      deadcode.cbuo8kcs8pm1..., require, sandbox.nodePool sandbox).
+      argocd/eks/deadcode.yaml = misma Application con valueFiles
+      [values.yaml, values-eks.yaml] (aplicar SOLO en EKS). CI (job helm):
+      lint + template de la versión EKS y comprobaciones (sin StatefulSet,
+      RDS con require, nodePool, contraseña fuera de la URL). Compose sin
+      cambios (su contraseña es alfanumérica).
+  5.2 PENDIENTE: monitoreo con valores compartidos (Prometheus sin disco
+      en EKS: se destruye en cada sesión; evita volúmenes EBS huérfanos).
+  5.3 PENDIENTE: scripts/eks-up.ps1 y eks-down.ps1 (terraform, kubeconfig,
+      ArgoCD, Secrets desde Secrets Manager, Applications) + prueba de
+      punta a punta (nivel 1 y 2, sandboxes en el nodo sandbox).
   Plan: 0) cuenta + MFA + presupuesto con alertas, usuario sin root
   para el día a día; 1) Terraform básico (plan/apply/destroy con algo
   gratis); 2) red (VPC); 3) EKS + node pool aparte para sandboxes (PID
@@ -951,6 +972,7 @@ cambiar el proyecto) con itsdangerous, click, requests y este repo.
 - k8s/kind-config.yaml: definición del clúster local (kind)
 - argocd/deadcode.yaml: Application de ArgoCD (qué chart vigilar y dónde
   desplegarlo; se aplica una vez a mano)
+- argocd/eks/deadcode.yaml: Application para EKS (values.yaml + values-eks.yaml)
 - argocd/monitoring.yaml: Application de monitoreo (chart oficial
   kube-prometheus-stack + nuestros ajustes; se aplica una vez a mano)
 - charts/deadcode-service/: chart de Helm (Chart.yaml, values.yaml,

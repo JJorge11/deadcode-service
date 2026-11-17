@@ -51,6 +51,13 @@ metrics:
     enabled: true                 # alerts/deadcode.rules.yaml -> Prometheus
 
 postgres:
+  # true = Postgres DENTRO del clúster (kind, StatefulSet de abajo).
+  # false = base EXTERNA (RDS en EKS): no se crea nada y la app usa "host".
+  enabled: true
+  host: postgres               # nombre del Service (o dirección de RDS)
+  # SSL hacia la base. "prefer" = usarlo si el servidor lo ofrece (el de
+  # kind no). RDS lo EXIGE: "require" en values-eks.yaml.
+  sslMode: prefer
   image: postgres:17-alpine
   storage: 1Gi
   # Secret con POSTGRES_USER, POSTGRES_PASSWORD y POSTGRES_DB.

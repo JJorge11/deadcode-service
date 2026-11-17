@@ -50,24 +50,25 @@ capabilities:
 {{- end }}
 
 {{/*
-Variables de conexión a Postgres. Las credenciales salen del Secret y
-DATABASE_URL se arma con $(VARIABLE): la contraseña nunca se escribe
-en ningún archivo. Antes estaba COPIADO en la API y el worker; ahora
-existe una sola vez.
+Variables de conexión a Postgres. Las credenciales salen del Secret: la
+contraseña nunca se escribe en ningún archivo. Va en PGPASSWORD (la lee
+sola la librería de Postgres) y NO dentro de DATABASE_URL: la que genera
+AWS para RDS puede traer símbolos como # ? % que en una URL significan
+otra cosa ("#" la corta). Una sola vez para la API y el worker.
 */}}
 {{- define "deadcode.databaseEnv" -}}
 {{- $secret := .Values.postgres.existingSecret -}}
 - name: POSTGRES_USER
   valueFrom:
     secretKeyRef: {name: {{ $secret }}, key: POSTGRES_USER}
-- name: POSTGRES_PASSWORD
+- name: PGPASSWORD
   valueFrom:
     secretKeyRef: {name: {{ $secret }}, key: POSTGRES_PASSWORD}
 - name: POSTGRES_DB
   valueFrom:
     secretKeyRef: {name: {{ $secret }}, key: POSTGRES_DB}
 - name: DATABASE_URL
-  value: postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)
+  value: postgresql://$(POSTGRES_USER)@{{ .Values.postgres.host }}:5432/$(POSTGRES_DB)?sslmode={{ .Values.postgres.sslMode }}
 {{- end }}
 
 {{/* Imagen completa de la app: repositorio:etiqueta */}}

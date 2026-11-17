@@ -1,6 +1,7 @@
-# PostgreSQL: Service + StatefulSet con disco persistente.
-# En la nube se usará un Postgres administrado (RDS); esto es para el
-# clúster local.
+# PostgreSQL: Service + StatefulSet con disco persistente. Solo en el
+# clúster local (kind). En EKS la base es RDS (postgres.enabled: false en
+# values-eks.yaml) y esto no se crea.
+{{- if .Values.postgres.enabled }}
 apiVersion: v1
 kind: Service
 metadata:
@@ -84,3 +85,4 @@ spec:
         resources:
           requests:
             storage: {{ .Values.postgres.storage }}
+{{- end }}

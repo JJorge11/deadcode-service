@@ -127,6 +127,18 @@ jobs:
       - name: Generar el YAML (helm template)
         run: helm template deadcode charts/deadcode-service -n deadcode > /dev/null
 
+      # La versión para EKS (values-eks.yaml encima de values.yaml): lint y
+      # comprobaciones de lo que DEBE cambiar: sin Postgres propio (usa
+      # RDS), SSL obligatorio y sandboxes en su grupo de nodos.
+      - name: Revisar la versión para EKS
+        run: |
+          helm lint charts/deadcode-service --strict -f charts/deadcode-service/values-eks.yaml
+          helm template deadcode charts/deadcode-service -n deadcode -f charts/deadcode-service/values-eks.yaml > eks.yaml
+          ! grep -q "kind: StatefulSet" eks.yaml || { echo "EKS no debe crear Postgres"; exit 1; }
+          grep -q "rds.amazonaws.com:5432/.*sslmode=require" eks.yaml || { echo "falta RDS con SSL"; exit 1; }
+          grep -q 'SANDBOX_NODE_POOL: "sandbox"' eks.yaml || { echo "falta el grupo de nodos"; exit 1; }
+          ! grep -q "POSTGRES_PASSWORD)@" eks.yaml || { echo "contraseña dentro de la URL"; exit 1; }
+
       # promtool (viene con Prometheus, misma versión que en el clúster):
       # revisa la sintaxis de las reglas de alerta y las prueba con datos
       # simulados (¿salta la alerta cuando debe, y no antes?).

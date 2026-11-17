@@ -1,0 +1,31 @@
+# Application de ArgoCD para EKS (AWS). Igual que argocd/deadcode.yaml
+# (kind), pero encima de values.yaml aplica values-eks.yaml: base en RDS y
+# sandboxes en su grupo de nodos. ⚠️ Aplicar SOLO en el clúster EKS (lo
+# hace scripts/eks-up.ps1), NUNCA en kind.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: deadcode
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/JJorge11/deadcode-service.git
+    targetRevision: main
+    path: charts/deadcode-service
+    helm:
+      releaseName: deadcode
+      # En orden: el segundo pisa al primero (solo lo que cambia en EKS).
+      valueFiles:
+        - values.yaml
+        - values-eks.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: deadcode
+
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
