@@ -606,12 +606,12 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
       aws-eks-nodeagent, admin (can-i * * = yes). Prueba de red: sin
       política: Service, PyPI por el NAT y DNS OK; con deny-all (5 s):
       Service, IP directa, internet y API de K8s bloqueados. Espía de
-      ARRANQUE (la carrera de ~1 s que había en kind): bloqueado desde el
-      primer intento (0,00 s), 0 de 30 conectaron (una sola prueba: el
-      portero se mantiene igual). destroy 5,7 min -> 0 clústeres, NAT,
+      ARRANQUE: bloqueado desde el primer intento (0,00 s)... PERO ERA
+      ENGAÑOSO (ver parte 4: la carrera SÍ existe en EKS). destroy 5,7 min -> 0 clústeres, NAT,
       IPs, EC2, discos EBS, VPCs y roles. Costo encendido ~0,39 USD/h.
       busybox: "date +%s%N" no da milisegundos -> usar /proc/uptime.
-  3.2 HECHA (sin commit). sandbox_nodes.tf: grupo "sandbox" (1 x
+  3.2 HECHA (commit 592d7fb; CI verde, desplegado en kind: nodePool "",
+      itsdangerous 21 hallazgos en 9 s). sandbox_nodes.tf: grupo "sandbox" (1 x
       c7i-flex.large, 4 GB, 0,085 USD/h; min 1 max 2) con etiqueta y TAINT
       deadcode/pool=sandbox:NoSchedule y launch template: user_data MIME
       con NodeConfig de nodeadm (kubelet podPidsLimit 128), disco gp3
@@ -638,6 +638,35 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
       PowerShell 5.1 rompe comillas internas en argumentos de kubectl.
       Para la parte 5 (desplegar en EKS): values con sandbox.nodePool:
       "sandbox".
+  Parte 4 HECHA (sin commit): rds.tf. Postgres 17 (17.9; soporte estándar
+  hasta feb-2030) en db.t4g.micro (0,016 USD/h), gp3 20 GB cifrado, sin IP
+  pública, una zona, engine_lifecycle_support = extended-support-disabled,
+  sin backups ni snapshot final (se destruye cada sesión). Contraseña:
+  manage_master_user_password -> la genera AWS y la guarda en Secrets
+  Manager: NO está en el código ni en el estado de Terraform (verificado:
+  password vacío en terraform state pull). Security group propio: SOLO
+  5432 desde el security group del clúster EKS (lo usan TODOS los nodos,
+  también los de sandbox: AWS no los distingue). Salidas db_endpoint y
+  db_secret_arn. 32 recursos, apply 10,4 min (RDS 5 min en paralelo).
+  Verificado: desde el PC el DNS da IP privada (10.20.x) y el 5432 no
+  llega; desde pods (nodo general y sandbox) psql OK con SSL (t);
+  sslmode=disable -> rechazado ("no pg_hba.conf entry ... no
+  encryption": RDS 17 exige SSL). Contraseña copiada de Secrets Manager a
+  un Secret de K8s vía archivo temporal borrado al instante (nunca
+  impresa). destroy 4,6 min -> 0 clústeres, RDS, secretos, snapshots,
+  NAT, IPs, EC2, discos, VPCs.
+  ⚠️ CARRERA DE ARRANQUE EN EKS (corrige la 3.1): con deny-all, pods psql
+  (terminan en <1 s) CONECTARON a RDS desde nodo general y sandbox. Espía
+  que reintenta cada 1 s: intento 1 CONECTA, 2-12 bloqueado. Docs AWS:
+  en modo "standard" (por defecto) un pod NUEVO arranca con "default
+  allow" hasta que se aplican las políticas. El portero (initContainer
+  wait_no_network) es OBLIGATORIO también en EKS: el código ajeno nunca
+  ve ese segundo. Opción a evaluar en la parte 5: modo "strict"
+  (NETWORK_POLICY_ENFORCING_MODE=strict en aws-node: todo pod nuevo
+  arranca con deny; exige políticas explícitas para TODO lo que habla,
+  incluido CoreDNS; la doc solo muestra editar el DaemonSet, verificar si
+  el add-on administrado lo conserva). La prueba de la 3.1 engañó porque
+  su primer intento (wget con DNS) llegó después de la ventana.
   Plan: 0) cuenta + MFA + presupuesto con alertas, usuario sin root
   para el día a día; 1) Terraform básico (plan/apply/destroy con algo
   gratis); 2) red (VPC); 3) EKS + node pool aparte para sandboxes (PID
@@ -937,7 +966,7 @@ cambiar el proyecto) con itsdangerous, click, requests y este repo.
 - infra/aws/bootstrap/: Terraform del bucket S3 donde las demás partes
   de la nube guardan su estado (permanente, prevent_destroy)
 - infra/aws/platform/: Terraform de la plataforma que se crea y destruye
-  en cada sesión (network.tf, eks.tf, sandbox_nodes.tf; RDS después)
+  en cada sesión (network.tf, eks.tf, sandbox_nodes.tf, rds.tf)
 
 ## Comandos útiles
 - Instalar dependencias (tras clonar o cambiar uv.lock): uv sync

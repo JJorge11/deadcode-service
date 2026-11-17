@@ -27,3 +27,13 @@ output "kubeconfig_command" {
   description = "Crea un kubeconfig APARTE (no toca el de kind)"
   value       = "aws eks update-kubeconfig --name ${aws_eks_cluster.main.name} --region us-east-2 --profile deadcode --kubeconfig $HOME/.kube/eks-deadcode --alias eks-deadcode"
 }
+
+output "db_endpoint" {
+  description = "Dirección de Postgres (solo accesible desde el clúster)"
+  value       = aws_db_instance.main.address
+}
+
+output "db_secret_arn" {
+  description = "Secret de Secrets Manager con usuario y contraseña de Postgres"
+  value       = aws_db_instance.main.master_user_secret[0].secret_arn
+}
