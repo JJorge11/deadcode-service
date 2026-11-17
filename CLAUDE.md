@@ -485,6 +485,14 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   SANDBOX_MODE: docker (debe coincidir con el worker; en K8s ya lo recibe
   por el ConfigMap). La página desactiva la casilla y explica por qué.
   313 tests (+4 saltados); mutante "sin rechazo" detectado.
+  Commit ef050e0 -> CI verde -> bot b9f07e5 (sha-ef050e0) -> desplegado.
+  EN EL CLÚSTER (http://127.0.0.1:8080/): /config true, CSP presente;
+  markupsafe nivel 2 en 46 s: 78,9% cobertura, 1 confirmado, 4 falsos
+  positivos, 23 no aplica (28 hallazgos, todos baja); detalle OK en la
+  página; 0 sandboxes vivos. Filtro inicial = la prioridad más alta CON
+  hallazgos en el código (si no hay en el código: en todo el repo, sin
+  "solo código"; sin hallazgos: "todas"). Antes arrancaba en "alta" con
+  0. Verificado: markupsafe -> baja (6), este repo -> media (2).
 - Pendiente después: README.
 - Pendiente: README (se dejó para más adelante); migraciones con
   Alembic cuando cambie la tabla.

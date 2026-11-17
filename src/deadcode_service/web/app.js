@@ -235,7 +235,14 @@ function findingsSection(analysis) {
   const result = analysis.result;
   const findings = result.dead_code || [];
   const hasDynamic = findings.some((f) => "executed" in f);
-  const state = { priority: "high", codeOnly: true };
+  // Filtro inicial: la prioridad MÁS ALTA que tenga algo que mostrar (si
+  // el repo no tiene ninguna "alta", empezar en "alta" mostraría una tabla
+  // vacía). Primero dentro del código; si ahí no hay nada, en todo el repo.
+  const firstWith = (list) => PRIORITIES.find((p) => list.some((f) => f.priority === p));
+  const inCode = findings.filter((f) => f.location === "code");
+  const state = inCode.length
+    ? { priority: firstWith(inCode), codeOnly: true }
+    : { priority: firstWith(findings) || "all", codeOnly: false };
 
   const tbody = el("tbody");
   const counter = el("span", { class: "muted small" });
@@ -284,7 +291,7 @@ function findingsSection(analysis) {
     const label = key === "all" ? "todas" : `${PRIORITY_NAMES[key]} (${counts[key] || 0})`;
     buttons[key] = el("button", { type: "button", onclick: () => ((state.priority = key), draw()) }, label);
   }
-  const codeOnly = el("input", { type: "checkbox", checked: "checked" });
+  const codeOnly = el("input", { type: "checkbox", checked: state.codeOnly });
   codeOnly.addEventListener("change", () => ((state.codeOnly = codeOnly.checked), draw()));
 
   draw();
