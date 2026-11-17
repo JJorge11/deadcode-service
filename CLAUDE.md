@@ -567,6 +567,23 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   de `aws login` (no hizo falta export-credentials). .gitignore:
   .terraform/, *.tfstate*, *.tfvars, *.tfplan (el lock SÍ va a git).
   ⚠️ PowerShell 5.1 parte "-out=x.tfplan": usar comillas '-out=x.tfplan'.
+     (igual con '-chdir=../bootstrap'). Si "terraform" no se reconoce en
+     una terminal vieja: abrir una nueva (PATH de winget).
+  Parte 2 HECHA (sin commit): infra/aws/platform/ = UNA carpeta para red
+  + EKS + RDS (cada sesión: 1 apply y 1 destroy, sin orden que recordar).
+  Estado en S3 (key platform/terraform.tfstate, use_lockfile = bloqueo
+  nativo de S3, sin DynamoDB); el bucket NO se escribe en el código: se
+  pasa en init (ver "Comandos útiles"). network.tf: VPC 10.20.0.0/16
+  (DNS hostnames on, exigido por EKS), 2 zonas (us-east-2a/b), públicas
+  /24 (etiqueta kubernetes.io/role/elb, sin IP pública automática),
+  privadas /20 (internal-elb; grandes porque en EKS cada POD recibe IP de
+  la VPC), Internet Gateway, UN NAT gateway (más barato que uno por zona)
+  + su IP, tablas de rutas, y el grupo de seguridad por defecto VACIADO
+  (0 reglas). 15 recursos. Ciclo verificado: apply 125 s (NAT 1m47s) ->
+  aws ec2 confirma todo (rangos, zonas, rutas igw/nat, 0 reglas,
+  etiquetas Component=platform) -> estado en S3 -> plan sin cambios ->
+  destroy 74 s -> 0 VPCs, 0 NAT, 0 IPs. Costo encendido ~0,05 USD/h
+  (NAT 0,045 + IP 0,005). La tabla de rutas "main" de AWS queda sin uso.
   Plan: 0) cuenta + MFA + presupuesto con alertas, usuario sin root
   para el día a día; 1) Terraform básico (plan/apply/destroy con algo
   gratis); 2) red (VPC); 3) EKS + node pool aparte para sandboxes (PID
@@ -865,6 +882,8 @@ cambiar el proyecto) con itsdangerous, click, requests y este repo.
 - .env.example: plantilla de variables (copiar a .env)
 - infra/aws/bootstrap/: Terraform del bucket S3 donde las demás partes
   de la nube guardan su estado (permanente, prevent_destroy)
+- infra/aws/platform/: Terraform de la plataforma que se crea y destruye
+  en cada sesión (network.tf hoy; EKS y RDS después)
 
 ## Comandos útiles
 - Instalar dependencias (tras clonar o cambiar uv.lock): uv sync
@@ -949,6 +968,17 @@ cambiar el proyecto) con itsdangerous, click, requests y este repo.
     esperando el CI); con gh, 5000/hora.
   / ⚠️ PowerShell 5.1 corta mal los argumentos con espacios/comillas al
     pasarlos a gh (--jq '...'): usar Git Bash para esos comandos.
+- AWS / Terraform (PowerShell; renovar sesión: aws login --profile deadcode):
+  / ¿quién soy?: aws sts get-caller-identity --profile deadcode
+  / plataforma, primera vez en un PC (en infra/aws/platform):
+    $bucket = terraform '-chdir=../bootstrap' output -raw state_bucket
+    terraform init "-backend-config=bucket=$bucket"
+    (en otro PC sin el estado del bootstrap: bucket = deadcode-tfstate-<id
+    de cuenta>, el id sale de get-caller-identity)
+  / encender: terraform plan '-out=x.tfplan' ; terraform apply x.tfplan
+  / ⚠️ APAGAR AL TERMINAR CADA SESIÓN: terraform destroy
+  / comprobar que no quedó nada que cobre:
+    aws ec2 describe-nat-gateways --profile deadcode --filter "Name=state,Values=pending,available,deleting" --query 'length(NatGateways)'
 - Apagar (conserva datos): docker compose down
 - Apagar y BORRAR datos de Postgres: docker compose down -v
 
