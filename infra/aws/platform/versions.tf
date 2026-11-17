@@ -10,6 +10,11 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 6.73"
     }
+    # Solo para preguntar "¿cuál es mi IP pública?" (ver eks.tf).
+    http = {
+      source  = "hashicorp/http"
+      version = "~> 3.5"
+    }
   }
 
   # El ESTADO ("cuaderno" de lo que existe) vive en el bucket de la parte 1,

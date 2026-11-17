@@ -549,7 +549,7 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   ~/.claude/skills (SE DEJAN, son guías) + MCP "aws-mcp" en
   ~/.claude.json (QUITADO con `claude mcp remove aws-mcp -s user`; no
   queremos un agente con acceso total actuando fuera de Terraform).
-  Parte 1 HECHA (sin commit): infra/aws/bootstrap/ (versions.tf,
+  Parte 1 HECHA (commit 173af93): infra/aws/bootstrap/ (versions.tf,
   main.tf, outputs.tf + .terraform.lock.hcl). Terraform 1.17 + proveedor
   hashicorp/aws 6.73.0 (firmado), provider con profile "deadcode" y
   region us-east-2, default_tags Project/ManagedBy/Component. Crea el
@@ -569,7 +569,7 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   ⚠️ PowerShell 5.1 parte "-out=x.tfplan": usar comillas '-out=x.tfplan'.
      (igual con '-chdir=../bootstrap'). Si "terraform" no se reconoce en
      una terminal vieja: abrir una nueva (PATH de winget).
-  Parte 2 HECHA (sin commit): infra/aws/platform/ = UNA carpeta para red
+  Parte 2 HECHA (commit a484ff4): infra/aws/platform/ = UNA carpeta para red
   + EKS + RDS (cada sesión: 1 apply y 1 destroy, sin orden que recordar).
   Estado en S3 (key platform/terraform.tfstate, use_lockfile = bloqueo
   nativo de S3, sin DynamoDB); el bucket NO se escribe en el código: se
@@ -584,6 +584,36 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   etiquetas Component=platform) -> estado en S3 -> plan sin cambios ->
   destroy 74 s -> 0 VPCs, 0 NAT, 0 IPs. Costo encendido ~0,05 USD/h
   (NAT 0,045 + IP 0,005). La tabla de rutas "main" de AWS queda sin uso.
+  Parte 3 = EKS, en 2 pasos. Datos de la cuenta (2026-11-17): versiones
+  en soporte estándar 1.34-1.37 (1.37 hasta nov-2027, la de AWS por
+  defecto y la de kind); tipos de máquina del plan gratis
+  (free-tier-eligible): t3/t4g/t8i micro y small, c7i-flex.large (4 GB,
+  0,085 USD/h) y m7i-flex.large (8 GB, 0,096 USD/h).
+  3.1 HECHA (sin commit): eks.tf. Roles IAM (clúster: AmazonEKSClusterPolicy;
+      nodos: WorkerNode + CNI + ECR solo lectura), clúster 1.37 con
+      upgrade_policy STANDARD (nunca pasa a soporte extendido), access
+      entries (authentication_mode API; quien lo crea = admin), API
+      pública SOLO desde tu IP (data "http" a checkip.amazonaws.com;
+      proveedor hashicorp/http 3.6.3) + privada para los nodos.
+      bootstrap_self_managed_addons = false y add-ons administrados:
+      vpc-cni con enableNetworkPolicy (¡en EKS viene APAGADO!),
+      kube-proxy, coredns (después de los nodos). Grupo "general": 2 x
+      m7i-flex.large, AL2023, 20 GB, en subredes privadas, etiqueta
+      deadcode/pool=general. 26 recursos (con la red).
+      Verificado: apply 10,7 min (control 8 min, nodos 2) -> kubeconfig
+      APARTE (~/.kube/eks-deadcode; kind sigue por defecto) -> 2 nodos
+      Ready v1.37.1 (uno por zona, sin IP pública), aws-node con
+      aws-eks-nodeagent, admin (can-i * * = yes). Prueba de red: sin
+      política: Service, PyPI por el NAT y DNS OK; con deny-all (5 s):
+      Service, IP directa, internet y API de K8s bloqueados. Espía de
+      ARRANQUE (la carrera de ~1 s que había en kind): bloqueado desde el
+      primer intento (0,00 s), 0 de 30 conectaron (una sola prueba: el
+      portero se mantiene igual). destroy 5,7 min -> 0 clústeres, NAT,
+      IPs, EC2, discos EBS, VPCs y roles. Costo encendido ~0,39 USD/h.
+      busybox: "date +%s%N" no da milisegundos -> usar /proc/uptime.
+  3.2 PENDIENTE: grupo de nodos aparte para sandboxes (taint + etiqueta,
+      podPidsLimit bajo vía launch template / nodeadm de AL2023) y
+      nodeSelector/tolerations en los pods de sandbox.py.
   Plan: 0) cuenta + MFA + presupuesto con alertas, usuario sin root
   para el día a día; 1) Terraform básico (plan/apply/destroy con algo
   gratis); 2) red (VPC); 3) EKS + node pool aparte para sandboxes (PID
@@ -977,6 +1007,9 @@ cambiar el proyecto) con itsdangerous, click, requests y este repo.
     de cuenta>, el id sale de get-caller-identity)
   / encender: terraform plan '-out=x.tfplan' ; terraform apply x.tfplan
   / ⚠️ APAGAR AL TERMINAR CADA SESIÓN: terraform destroy
+  / kubectl contra EKS (tras el apply; NO toca el contexto de kind):
+    aws eks update-kubeconfig --name deadcode --region us-east-2 --profile deadcode --kubeconfig $HOME\.kube\eks-deadcode --alias eks-deadcode
+    $env:KUBECONFIG = "$HOME\.kube\eks-deadcode"   (cerrar la terminal o Remove-Item Env:KUBECONFIG para volver a kind)
   / comprobar que no quedó nada que cobre:
     aws ec2 describe-nat-gateways --profile deadcode --filter "Name=state,Values=pending,available,deleting" --query 'length(NatGateways)'
 - Apagar (conserva datos): docker compose down
