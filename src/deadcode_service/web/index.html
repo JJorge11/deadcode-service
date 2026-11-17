@@ -1,0 +1,66 @@
+<!doctype html>
+<!--
+  Dashboard web de deadcode-service. Solo HTML: el contenido lo pone
+  app.js llamando a la API (POST /analyses, GET /analyses, GET /analyses/{id}).
+  Sin scripts en línea: la cabecera CSP (ver main.py) solo permite app.js.
+-->
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>deadcode-service</title>
+  <link rel="stylesheet" href="/app.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="top">
+    <h1><a href="#" id="home">deadcode-service</a></h1>
+    <p class="muted">Código muerto en repos públicos de Python: Vulture (nivel 1) + tests con coverage.py (nivel 2).</p>
+  </header>
+
+  <main>
+    <!-- Nuevo análisis -->
+    <section class="card">
+      <h2>Nuevo análisis</h2>
+      <form id="new-analysis">
+        <input id="repo-url" type="text" placeholder="https://github.com/pallets/itsdangerous"
+               autocomplete="off" spellcheck="false" required>
+        <label class="check" id="dynamic-label">
+          <input id="dynamic" type="checkbox">
+          Con tests (nivel 2): más lento (minutos), confirma o descarta cada hallazgo
+        </label>
+        <p id="dynamic-note" class="muted small" hidden>
+          El nivel 2 no está disponible en este entorno: necesita Kubernetes (el pod que
+          descarga las librerías del repo tiene internet pero NO la red interna, y eso
+          Docker Compose no lo puede garantizar). Aquí puedes pedir el nivel 1 (Vulture).
+          Para el nivel 2, usa la página del clúster: http://127.0.0.1:8080/
+        </p>
+        <button type="submit">Analizar</button>
+      </form>
+      <p id="form-message" class="message" hidden></p>
+    </section>
+
+    <!-- Lista de análisis (se ve cuando no hay uno abierto) -->
+    <section class="card" id="list-view">
+      <div class="row-between">
+        <h2>Últimos análisis</h2>
+        <span id="list-status" class="muted small"></span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Repo</th><th>Nivel</th><th>Estado</th><th>Hallazgos (alta / media / baja)</th><th>Cuándo</th><th>Duración</th></tr>
+          </thead>
+          <tbody id="analyses"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Detalle de un análisis (se ve al hacer clic en uno de la lista) -->
+    <section id="detail-view" hidden>
+      <p><a href="#" class="back">← Volver a la lista</a></p>
+      <div id="detail"></div>
+    </section>
+  </main>
+</body>
+</html>

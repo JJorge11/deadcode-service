@@ -14,6 +14,9 @@ services:
       # ("postgres", "redis"), no por "localhost".
       DATABASE_URL: postgresql://${POSTGRES_USER:?falta en .env}:${POSTGRES_PASSWORD:?falta en .env}@postgres:5432/${POSTGRES_DB:?falta en .env}
       REDIS_URL: redis://redis:6379/0
+      # La API NO lanza sandboxes: solo lo usa para saber qué ofrecer
+      # (en "docker" no hay nivel 2). Debe coincidir con el del worker.
+      SANDBOX_MODE: docker
     depends_on:
       # La API arranca solo cuando Postgres y Redis pasan su healthcheck.
       postgres:

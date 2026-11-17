@@ -450,10 +450,42 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   en <=300, 339 s en <=600); cruce 6/5/126 y 1 fallo KeyError. 298
   tests en Windows (+4 saltados), 302 en Linux; 3 mutantes detectados
   (todo nivel 1, motivo olvidado, veredictos cruzados).
-  SIGUIENTE: commit -> verificar en Grafana; luego el dashboard web.
-- Pendiente después: dashboard, README.
-- Pendiente: dashboard simple (el usuario tuvo dificultad usando /docs
-  para consultar resultados: copiar ids y leer JSON es incómodo).
+  Commit 8bbe63d -> CI verde -> bot ddbf3fc (sha-8bbe63d) -> desplegado.
+  VERIFICADO: Grafana cargó el dashboard (17 paneles, fila Nivel 2);
+  /metrics publica las series nuevas; en Prometheus: nivel 2 funcionó
+  50%, falsos positivos 45,5% (5/11), fallos tests_no_ejecutables=1,
+  cruce 6/5/126. Duración por nivel tras 2 análisis nuevos: p50 nivel 1
+  = 7,5 s, nivel 2 = ~90 s (click tardó 82 s, antes 143 s). La serie
+  vieja SIN etiqueta level sale como NaN durante 1 h y desaparece sola.
+  Datos de Postgres intactos tras el despliegue. 0 sandboxes vivos.
+- Dashboard web HECHO (sin commit): página en "/" servida por la MISMA
+  API (sin React ni otro contenedor): src/deadcode_service/web/
+  index.html + app.js + app.css, rutas fijas en main.py (no una carpeta
+  abierta; ocultas en /docs). Formulario (URL + "con tests"), lista que
+  se actualiza cada 5 s mientras hay pendientes, detalle en "#<id>"
+  (resumen, nivel 2, hallazgos filtrables por prioridad y "solo código",
+  enlace a GitHub en el commit y línea exactos). GET /analyses ahora es
+  LIVIANO: sin "result", con summary y dynamic_status (el detalle sigue
+  en /analyses/{id}). La tabla no guarda el nivel: en cola se ve "–"
+  (salvo los creados desde la página). SEGURIDAD (XSS): los nombres
+  vienen de repos ajenos -> app.js usa SOLO textContent (test prohíbe
+  innerHTML/eval) + cabecera CSP solo en la página (script-src 'self';
+  en /docs NO: Swagger usa un CDN). Probado con Chrome headless en
+  Compose: lista, detalle de click nivel 2, análisis viejo (simulado,
+  sin resumen) y 520 px; análisis TRAMPA con <img onerror> y <script>
+  en nombre/ruta/motivo -> se ven como texto, 0 <img>, título intacto
+  (luego borrado). Bug hallado así: el() aplanaba 1 nivel -> "[object
+  HTMLSpanElement]" (flat(Infinity)). Chrome headless no baja de ~500
+  px de ancho. 308 tests (+4 saltados), 312 en Linux. En la base de
+  Compose quedó una COPIA del análisis de click (nivel 2) del clúster.
+  Nivel 2 en Compose: antes se encolaba y salía "dynamic failed" tras
+  esperar. Ahora GET /config -> {level2_available} (sandbox.level2_available:
+  modos kubernetes/local) y POST con dynamic=true en modo docker -> 400 al
+  instante (nada guardado ni encolado). La API de Compose recibe
+  SANDBOX_MODE: docker (debe coincidir con el worker; en K8s ya lo recibe
+  por el ConfigMap). La página desactiva la casilla y explica por qué.
+  313 tests (+4 saltados); mutante "sin rechazo" detectado.
+- Pendiente después: README.
 - Pendiente: README (se dejó para más adelante); migraciones con
   Alembic cuando cambie la tabla.
 
@@ -684,7 +716,9 @@ cambiar el proyecto) con itsdangerous, click, requests y este repo.
 
 ## Estructura
 - src/deadcode_service/main.py: API FastAPI (/health, POST /analyses,
-  GET /analyses, GET /analyses/{id})
+  GET /analyses, GET /analyses/{id}) + la página web ("/", /app.js, /app.css)
+- src/deadcode_service/web/: dashboard web (index.html, app.js, app.css);
+  abrir http://127.0.0.1:8000/ (Compose) o http://127.0.0.1:8080/ (clúster)
 - src/deadcode_service/db.py: tabla "analyses" y consultas SQL
 - src/deadcode_service/validation.py: validación de URLs (anti-SSRF)
 - src/deadcode_service/tasks.py: tarea del worker (descargar + analizar)

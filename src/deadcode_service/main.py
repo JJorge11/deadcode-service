@@ -2,15 +2,16 @@ import logging
 import os
 import uuid
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import psycopg
 import redis
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field, field_validator
 from rq import Queue
 
-from deadcode_service import db
+from deadcode_service import db, sandbox
 from deadcode_service.metrics import setup_metrics
 from deadcode_service.tasks import QUEUE_NAME, analyze_repo, job_timeout
 from deadcode_service.validation import MAX_URL_LENGTH, normalize_github_url
@@ -125,12 +126,30 @@ def get_redis() -> redis.Redis:
     return redis.Redis.from_url(REDIS_URL)
 
 
+LEVEL2_UNAVAILABLE = (
+    "El análisis con tests (nivel 2) solo está disponible en Kubernetes;"
+    " aquí se puede pedir solo el nivel 1"
+)
+
+
+@app.get("/config")
+def config():
+    """Qué ofrece este entorno. La página lo usa para mostrar (o no) la
+    opción "con tests"."""
+    return {"level2_available": sandbox.level2_available()}
+
+
 @app.post("/analyses", status_code=202)
 def create_analysis(request: AnalysisRequest):
     """Registra un análisis y lo encola. Responde al instante.
 
     202 = "Aceptado": recibido, pero se procesará después.
     """
+    # Nivel 2 donde no se puede (Compose): avisar YA, no después de
+    # esperar un análisis que terminaría con el nivel 2 fallido.
+    if request.dynamic and not sandbox.level2_available():
+        raise HTTPException(status_code=400, detail=LEVEL2_UNAVAILABLE)
+
     analysis_id = uuid.uuid4()  # identificador único al azar
     repo_url = request.repo_url  # ya validada y normalizada
 
@@ -160,7 +179,10 @@ def create_analysis(request: AnalysisRequest):
 
 @app.get("/analyses")
 def list_analyses():
-    """Los últimos 20 análisis, del más nuevo al más antiguo."""
+    """Los últimos 20 análisis, del más nuevo al más antiguo.
+
+    Sin los hallazgos (solo el resumen): para verlos, GET /analyses/{id}.
+    """
     return db.list_analyses(limit=20)
 
 
@@ -175,3 +197,42 @@ def get_analysis(analysis_id: uuid.UUID):
     if analysis is None:
         raise HTTPException(status_code=404, detail="Análisis no encontrado")
     return analysis
+
+
+# ---------------------------------------------------------------------
+# Página web (dashboard): HTML + JS + CSS que llaman a la API de arriba.
+# ---------------------------------------------------------------------
+
+WEB_DIR = Path(__file__).parent / "web"
+
+# CSP (Content-Security-Policy): le dice al navegador qué puede cargar la
+# página. Solo nuestros archivos ('self'); ningún script en línea ni de
+# otros sitios. Es la 2a defensa contra XSS: los nombres de funciones y
+# archivos vienen de repos AJENOS; la 1a es que app.js los inserta
+# siempre como texto (textContent), nunca como HTML.
+# Va SOLO en la página: /docs carga Swagger desde un CDN y se rompería.
+PAGE_HEADERS = {
+    "Content-Security-Policy": (
+        "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self';"
+        " img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+    ),
+    "X-Content-Type-Options": "nosniff",  # no "adivinar" tipos: un .js es JS
+    "Referrer-Policy": "no-referrer",  # al abrir GitHub no se envía de dónde vienes
+}
+
+
+@app.get("/", include_in_schema=False)
+def web_page():
+    return FileResponse(WEB_DIR / "index.html", headers=PAGE_HEADERS)
+
+
+# Rutas fijas (no una carpeta entera): solo se sirve lo que está en esta
+# lista, y cada archivo aparece en las métricas con su propio nombre.
+@app.get("/app.js", include_in_schema=False)
+def web_script():
+    return FileResponse(WEB_DIR / "app.js", media_type="text/javascript", headers=PAGE_HEADERS)
+
+
+@app.get("/app.css", include_in_schema=False)
+def web_styles():
+    return FileResponse(WEB_DIR / "app.css", media_type="text/css", headers=PAGE_HEADERS)

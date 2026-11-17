@@ -98,7 +98,17 @@ def get_analysis(analysis_id: uuid.UUID) -> dict | None:
 
 
 def list_analyses(limit: int = 20) -> list[dict]:
+    """Los últimos análisis, LIVIANOS: sin la lista de hallazgos.
+
+    Un resultado puede traer cientos de hallazgos; 20 de ellos completos
+    serían varios MB solo para pintar una lista. Del resultado se toma
+    solo el resumen y el estado del nivel 2 (NULL = nivel 1 o sin terminar).
+    """
     with connect() as conn:
         return conn.execute(
-            "SELECT * FROM analyses ORDER BY created_at DESC LIMIT %s", (limit,)
+            "SELECT id, repo_url, status, error, created_at, finished_at,"
+            " result -> 'summary' AS summary,"
+            " result -> 'dynamic' ->> 'status' AS dynamic_status"
+            " FROM analyses ORDER BY created_at DESC LIMIT %s",
+            (limit,),
         ).fetchall()

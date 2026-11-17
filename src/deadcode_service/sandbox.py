@@ -48,6 +48,10 @@ from deadcode_service.errors import AnalysisError
 logger = logging.getLogger(__name__)
 
 SANDBOX_MODE = os.environ.get("SANDBOX_MODE", "local")
+# Modos donde corre el nivel 2 (tests del repo). En "docker" (Compose) NO:
+# no hay cómo darle internet al pod de descarga sin la red de tu PC.
+# "local" = sin aislamiento, solo tests y pruebas en Windows.
+LEVEL2_MODES = ("kubernetes", "local")
 SANDBOX_IMAGE = os.environ.get("SANDBOX_IMAGE", "deadcode-service:dev")
 SANDBOX_NAMESPACE = os.environ.get("SANDBOX_NAMESPACE", "deadcode-sandboxes")
 
@@ -86,6 +90,11 @@ K8S_DOWNLOAD_TMP_SIZE = "256Mi"
 COVERAGE_TIMEOUT_SECONDS = 360
 K8S_COVERAGE_MEMORY_LIMIT = "1Gi"
 K8S_COVERAGE_TMP_SIZE = "2Gi"
+
+
+def level2_available() -> bool:
+    """¿Se puede pedir el nivel 2 aquí? La API lo usa para avisar ANTES de encolar."""
+    return SANDBOX_MODE in LEVEL2_MODES
 
 
 class AnalysisTimeoutError(AnalysisError):
