@@ -1,0 +1,44 @@
+# Application de monitoreo para EKS: igual que argocd/monitoring.yaml
+# (kind) + monitoring/values-eks.yaml encima. ⚠️ Aplicar SOLO en EKS (lo
+# hace scripts/eks-up.ps1), NUNCA en kind. Antes: namespace "monitoring" y
+# Secret "grafana-admin" (también los crea el script).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring
+  namespace: argocd
+  # Sin finalizer (igual que "deadcode"): borrar esta Application NO
+  # borra Prometheus ni sus datos.
+spec:
+  project: default
+
+  # QUÉ: chart kube-prometheus-stack, versión FIJA (como las imágenes),
+  # con NUESTROS valores tomados de este repo (monitoring/values.yaml).
+  # Dos "fuentes": el chart (de su repositorio) y nuestro git, al que se
+  # le pone un nombre ("ref: values") para usarlo como $values.
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      targetRevision: 93.3.0
+      helm:
+        releaseName: monitoring
+        valueFiles:
+          - $values/monitoring/values.yaml
+          - $values/monitoring/values-eks.yaml
+    - repoURL: https://github.com/JJorge11/deadcode-service.git
+      targetRevision: main
+      ref: values
+
+  # DÓNDE: este clúster, namespace "monitoring" (creado a mano).
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      # Las CRDs (nuevos "tipos" de objeto, como ServiceMonitor) son tan
+      # grandes que "kubectl apply" normal falla; ServerSideApply no.
+      - ServerSideApply=true

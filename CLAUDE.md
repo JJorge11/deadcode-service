@@ -668,7 +668,9 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   el add-on administrado lo conserva). La prueba de la 3.1 engañó porque
   su primer intento (wget con DNS) llegó después de la ventana.
   Parte 5 = la app completa en EKS, en 3 pasos:
-  5.1 HECHO (sin commit): el chart sirve para kind y EKS. Contraseña en
+  5.1 HECHO (commit 45385b7; en kind: PGPASSWORD + URL sin contraseña,
+      /health 200, itsdangerous 21 en 9 s, 29 análisis viejos intactos):
+      el chart sirve para kind y EKS. Contraseña en
       PGPASSWORD (la lee libpq) y DATABASE_URL SIN contraseña:
       postgresql://$(POSTGRES_USER)@<host>:5432/$(POSTGRES_DB)?sslmode=<x>.
       Motivo: la de RDS puede traer # ? % que rompen la URL (PROBADO contra
@@ -683,8 +685,18 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
       lint + template de la versión EKS y comprobaciones (sin StatefulSet,
       RDS con require, nodePool, contraseña fuera de la URL). Compose sin
       cambios (su contraseña es alfanumérica).
-  5.2 PENDIENTE: monitoreo con valores compartidos (Prometheus sin disco
-      en EKS: se destruye en cada sesión; evita volúmenes EBS huérfanos).
+  5.2 HECHO (sin commit; tras el push hay que hacer kubectl apply -f
+      argocd/monitoring.yaml en kind): los valores de kube-prometheus-stack
+      salieron de argocd/monitoring.yaml a monitoring/values.yaml
+      (compartido) + monitoring/values-eks.yaml (storageSpec: null ->
+      Prometheus SIN disco en EKS: se destruye cada sesión y un PVC crea un
+      volumen EBS FUERA de Terraform que podría quedar huérfano cobrando).
+      Applications "multi-source": el chart de su repositorio + nuestro git
+      con "ref: values" -> valueFiles $values/monitoring/values.yaml.
+      argocd/eks/monitoring.yaml = lo mismo + values-eks.yaml. Verificado
+      con helm template (chart 93.3.0 descargado): kind antes vs ahora = 0
+      líneas distintas; EKS vs kind = solo las 8 líneas del disco. CI (job
+      helm): genera ambos y exige disco en kind y NINGUNO en EKS.
   5.3 PENDIENTE: scripts/eks-up.ps1 y eks-down.ps1 (terraform, kubeconfig,
       ArgoCD, Secrets desde Secrets Manager, Applications) + prueba de
       punta a punta (nivel 1 y 2, sandboxes en el nodo sandbox).
@@ -973,6 +985,9 @@ cambiar el proyecto) con itsdangerous, click, requests y este repo.
 - argocd/deadcode.yaml: Application de ArgoCD (qué chart vigilar y dónde
   desplegarlo; se aplica una vez a mano)
 - argocd/eks/deadcode.yaml: Application para EKS (values.yaml + values-eks.yaml)
+- argocd/eks/monitoring.yaml: monitoreo para EKS (+ monitoring/values-eks.yaml)
+- monitoring/values.yaml: valores de kube-prometheus-stack (kind y EKS);
+  monitoring/values-eks.yaml: lo que cambia en EKS (Prometheus sin disco)
 - argocd/monitoring.yaml: Application de monitoreo (chart oficial
   kube-prometheus-stack + nuestros ajustes; se aplica una vez a mano)
 - charts/deadcode-service/: chart de Helm (Chart.yaml, values.yaml,

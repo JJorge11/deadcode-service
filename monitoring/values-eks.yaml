@@ -1,0 +1,10 @@
+# Lo que CAMBIA en EKS respecto de monitoring/values.yaml (kind).
+
+prometheus:
+  prometheusSpec:
+    # SIN disco propio: el clúster EKS se destruye en cada sesión (la
+    # historia se perdería igual) y un disco creado por Kubernetes (PVC ->
+    # volumen EBS) queda FUERA de Terraform: si algo falla al destruir,
+    # quedaría huérfano cobrando. "null" BORRA el storageSpec de
+    # values.yaml -> Prometheus guarda en un emptyDir (dentro del nodo).
+    storageSpec: null

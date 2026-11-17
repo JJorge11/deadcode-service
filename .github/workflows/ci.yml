@@ -139,6 +139,18 @@ jobs:
           grep -q 'SANDBOX_NODE_POOL: "sandbox"' eks.yaml || { echo "falta el grupo de nodos"; exit 1; }
           ! grep -q "POSTGRES_PASSWORD)@" eks.yaml || { echo "contraseña dentro de la URL"; exit 1; }
 
+      # Monitoreo (chart oficial kube-prometheus-stack, misma versión que en
+      # argocd/monitoring.yaml) con NUESTROS valores: que se genere en kind y
+      # en EKS, y que en EKS Prometheus NO pida disco (volumen EBS fuera de
+      # Terraform que podría quedar huérfano cobrando).
+      - name: Revisar los valores del monitoreo
+        run: |
+          kps="kube-prometheus-stack --repo https://prometheus-community.github.io/helm-charts --version 93.3.0"
+          helm template monitoring $kps -n monitoring -f monitoring/values.yaml > kps-kind.yaml
+          helm template monitoring $kps -n monitoring -f monitoring/values.yaml -f monitoring/values-eks.yaml > kps-eks.yaml
+          grep -q volumeClaimTemplate kps-kind.yaml || { echo "kind: Prometheus sin disco"; exit 1; }
+          ! grep -q volumeClaimTemplate kps-eks.yaml || { echo "EKS: Prometheus NO debe pedir disco"; exit 1; }
+
       # promtool (viene con Prometheus, misma versión que en el clúster):
       # revisa la sintaxis de las reglas de alerta y las prueba con datos
       # simulados (¿salta la alerta cuando debe, y no antes?).
