@@ -589,7 +589,7 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   defecto y la de kind); tipos de máquina del plan gratis
   (free-tier-eligible): t3/t4g/t8i micro y small, c7i-flex.large (4 GB,
   0,085 USD/h) y m7i-flex.large (8 GB, 0,096 USD/h).
-  3.1 HECHA (sin commit): eks.tf. Roles IAM (clúster: AmazonEKSClusterPolicy;
+  3.1 HECHA (commit 772330a): eks.tf. Roles IAM (clúster: AmazonEKSClusterPolicy;
       nodos: WorkerNode + CNI + ECR solo lectura), clúster 1.37 con
       upgrade_policy STANDARD (nunca pasa a soporte extendido), access
       entries (authentication_mode API; quien lo crea = admin), API
@@ -611,9 +611,33 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
       portero se mantiene igual). destroy 5,7 min -> 0 clústeres, NAT,
       IPs, EC2, discos EBS, VPCs y roles. Costo encendido ~0,39 USD/h.
       busybox: "date +%s%N" no da milisegundos -> usar /proc/uptime.
-  3.2 PENDIENTE: grupo de nodos aparte para sandboxes (taint + etiqueta,
-      podPidsLimit bajo vía launch template / nodeadm de AL2023) y
-      nodeSelector/tolerations en los pods de sandbox.py.
+  3.2 HECHA (sin commit). sandbox_nodes.tf: grupo "sandbox" (1 x
+      c7i-flex.large, 4 GB, 0,085 USD/h; min 1 max 2) con etiqueta y TAINT
+      deadcode/pool=sandbox:NoSchedule y launch template: user_data MIME
+      con NodeConfig de nodeadm (kubelet podPidsLimit 128), disco gp3
+      20 GB cifrado, IMDSv2 obligatorio con hop_limit 1 (los pods no
+      llegan a las credenciales del nodo). App: SANDBOX_NODE_POOL (env,
+      ConfigMap, values sandbox.nodePool: "" = cualquier nodo, kind) ->
+      _pod_spec agrega nodeSelector + toleration a los 3 pods (análisis,
+      descarga, tests). 6 tests nuevos; mutante "solo toleration, sin
+      nodeSelector" detectado. 319 tests Windows (+4 saltados), 323 Linux.
+      MEDIDO antes de fijar el límite (pids.peak en Docker, procesos +
+      hilos): Vulture 6, descarga 6, tests itsdangerous/requests/este
+      repo/tramposo 6, click 11 -> 128 (~11x, igual que en Docker).
+      EN EKS (apply 10,8 min, 28 recursos): podPidsLimit sandbox 128,
+      general -1 (sin límite); pids.current en el nodo sandbox: aws-node
+      20, kube-proxy 7 (también cuentan; leído con kubectl debug node
+      --profile=sysadmin + grep -H en /host/sys/fs/cgroup/kubepods.slice;
+      stats/summary "process_count" NO cuenta hilos). Deployment de 4
+      sin pase -> 4 en nodos general; pods con pase -> sandbox. Bomba de
+      procesos: fork() falla tras 126 hijos (+padre +pause = 128), nodo
+      sano (0 reinicios). IMDS: cerrado desde pods (timeout) en sandbox Y
+      en general: AWS ya pone required/hop 1 por defecto en AL2023 (aws
+      ec2 describe-instances); la launch template lo GARANTIZA.
+      Aprendido: en YAML un ancla (&x / *x) no cruza documentos (---);
+      PowerShell 5.1 rompe comillas internas en argumentos de kubectl.
+      Para la parte 5 (desplegar en EKS): values con sandbox.nodePool:
+      "sandbox".
   Plan: 0) cuenta + MFA + presupuesto con alertas, usuario sin root
   para el día a día; 1) Terraform básico (plan/apply/destroy con algo
   gratis); 2) red (VPC); 3) EKS + node pool aparte para sandboxes (PID
@@ -913,7 +937,7 @@ cambiar el proyecto) con itsdangerous, click, requests y este repo.
 - infra/aws/bootstrap/: Terraform del bucket S3 donde las demás partes
   de la nube guardan su estado (permanente, prevent_destroy)
 - infra/aws/platform/: Terraform de la plataforma que se crea y destruye
-  en cada sesión (network.tf hoy; EKS y RDS después)
+  en cada sesión (network.tf, eks.tf, sandbox_nodes.tf; RDS después)
 
 ## Comandos útiles
 - Instalar dependencias (tras clonar o cambiar uv.lock): uv sync

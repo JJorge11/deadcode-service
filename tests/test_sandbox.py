@@ -157,6 +157,9 @@ POD_SPECS = [
     ),
 ]
 
+# Solo las funciones que arman cada pod (análisis, descarga, tests).
+BUILDERS = [pytest.param(p.values[0], id=p.id) for p in POD_SPECS]
+
 
 @pytest.mark.parametrize("build, tmp_volume, deadline, memory", POD_SPECS)
 def test_pod_cumple_pod_security_restricted(build, tmp_volume, deadline, memory):
@@ -227,6 +230,30 @@ def test_pod_tiene_portero_que_confirma_sin_red():
     assert portero["securityContext"] == container["securityContext"]
     assert "memory" in portero["resources"]["limits"] and "cpu" in portero["resources"]["limits"]
     assert "env" not in portero and "volumeMounts" not in portero
+
+
+@pytest.mark.parametrize("build", BUILDERS)
+def test_sin_grupo_de_nodos_el_pod_va_a_cualquier_nodo(monkeypatch, build):
+    """kind: un solo tipo de nodo, nada que elegir."""
+    monkeypatch.setattr(sandbox, "SANDBOX_NODE_POOL", "")
+    spec = build()["spec"]
+
+    assert "nodeSelector" not in spec and "tolerations" not in spec
+
+
+@pytest.mark.parametrize("build", BUILDERS)
+def test_con_grupo_de_nodos_el_pod_va_solo_ahi(monkeypatch, build):
+    """EKS: los 3 pods (análisis, descarga y tests) van a los nodos de
+    sandboxes. Con el pase (toleration) pero SIN la obligación
+    (nodeSelector), podrían caer en un nodo general sin límite bajo de
+    procesos y junto a la API."""
+    monkeypatch.setattr(sandbox, "SANDBOX_NODE_POOL", "sandbox")
+    spec = build()["spec"]
+
+    assert spec["nodeSelector"] == {"deadcode/pool": "sandbox"}
+    assert spec["tolerations"] == [{
+        "key": "deadcode/pool", "operator": "Equal", "value": "sandbox", "effect": "NoSchedule",
+    }]
 
 
 def test_kubernetes_portero_fallido_no_es_culpa_del_repo(fake_kubectl):

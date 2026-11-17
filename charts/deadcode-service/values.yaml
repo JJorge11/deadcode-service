@@ -35,6 +35,9 @@ sandbox:
   maxPods: 4                      # sandboxes simultáneos como máximo
   quotaMemory: 2Gi                # memoria total de todos los sandboxes
   quotaCpu: "4"
+  # Grupo de nodos SOLO para sandboxes (etiqueta y taint deadcode/pool=<valor>,
+  # ver infra/aws/platform/eks.tf). "" = cualquier nodo (kind).
+  nodePool: ""
 
 # Métricas para Prometheus (etapa 6). Requiere kube-prometheus-stack
 # instalado (argocd/monitoring.yaml); si no, poner enabled: false.

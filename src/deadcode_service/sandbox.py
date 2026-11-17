@@ -54,6 +54,10 @@ SANDBOX_MODE = os.environ.get("SANDBOX_MODE", "local")
 LEVEL2_MODES = ("kubernetes", "local")
 SANDBOX_IMAGE = os.environ.get("SANDBOX_IMAGE", "deadcode-service:dev")
 SANDBOX_NAMESPACE = os.environ.get("SANDBOX_NAMESPACE", "deadcode-sandboxes")
+# Grupo de nodos SOLO para sandboxes (EKS: nodos con "taint" y límite de
+# procesos bajo). "" = cualquier nodo (kind: hay un solo tipo de nodo).
+SANDBOX_NODE_POOL = os.environ.get("SANDBOX_NODE_POOL", "")
+NODE_POOL_KEY = "deadcode/pool"  # etiqueta y taint de los nodos (infra/aws/platform)
 
 TIMEOUT_SECONDS = 120
 MEMORY_LIMIT = "512m"
@@ -260,7 +264,7 @@ def _pod_spec(
     tmp_volume = {"sizeLimit": tmp_size}
     if tmp_in_memory:
         tmp_volume["medium"] = "Memory"
-    return {
+    pod = {
         "apiVersion": "v1",
         "metadata": {"labels": {"deadcode.sandbox": "true", "deadcode.role": role}},
         "spec": {
@@ -317,6 +321,18 @@ def _pod_spec(
             "volumes": [{"name": "tmp", "emptyDir": tmp_volume}],
         },
     }
+    if SANDBOX_NODE_POOL:
+        # Los nodos de sandboxes tienen un "taint" (prohibido entrar) que
+        # aleja a todo lo demás. El pod necesita LAS DOS cosas:
+        #   - toleration: el "pase" para poder entrar a esos nodos;
+        #   - nodeSelector: la OBLIGACIÓN de ir ahí (con solo el pase
+        #     podría caer en un nodo general, sin el límite de procesos).
+        pod["spec"]["nodeSelector"] = {NODE_POOL_KEY: SANDBOX_NODE_POOL}
+        pod["spec"]["tolerations"] = [{
+            "key": NODE_POOL_KEY, "operator": "Equal",
+            "value": SANDBOX_NODE_POOL, "effect": "NoSchedule",
+        }]
+    return pod
 
 
 def build_kubectl_command(pod_name: str, spec: dict | None = None) -> list[str]:
