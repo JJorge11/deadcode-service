@@ -40,8 +40,8 @@ def test_las_metricas_usadas_existen_en_el_codigo():
         p.read_text(encoding="utf-8") for p in (ROOT / "src" / "deadcode_service").glob("*metrics.py")
     )
     # Nombres EXACTOS declarados en el código (entre comillas).
-    defined = {base(name) for name in re.findall(r'"(deadcode_[a-z_]+)"', source)}
+    defined = {base(name) for name in re.findall(r'"(deadcode_[a-z0-9_]+)"', source)}
     dashboard = JSON_FILE.read_text(encoding="utf-8")
-    used = {base(name) for name in re.findall(r"deadcode_[a-z_]+", dashboard)} - {"deadcode_service"}
+    used = {base(name) for name in re.findall(r"deadcode_[a-z0-9_]+", dashboard)} - {"deadcode_service"}
 
     assert sorted(used - defined) == []

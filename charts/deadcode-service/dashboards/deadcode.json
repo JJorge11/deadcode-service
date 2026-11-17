@@ -480,8 +480,8 @@
     },
     {
       "type": "timeseries",
-      "title": "Duración de los análisis (p50 y p95, última hora)",
-      "description": "Tiempo total: espera en cola + análisis. Solo los terminados bien. Sin análisis en la hora = sin datos.",
+      "title": "Duración de los análisis por nivel (p50 y p95, última hora)",
+      "description": "Tiempo total: espera en cola + análisis. Solo los terminados bien. Separado por nivel: uno de nivel 2 (con tests) tarda minutos. Sin análisis en la hora = sin datos.",
       "id": 11,
       "datasource": {
         "type": "prometheus",
@@ -500,8 +500,8 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "histogram_quantile(0.50, max by (le) (rate(deadcode_analysis_duration_seconds_bucket[1h])))",
-          "legendFormat": "p50"
+          "expr": "histogram_quantile(0.50, max by (le, level) (rate(deadcode_analysis_duration_seconds_bucket[1h])))",
+          "legendFormat": "nivel {{level}} p50"
         },
         {
           "datasource": {
@@ -509,8 +509,8 @@
             "uid": "prometheus"
           },
           "refId": "B",
-          "expr": "histogram_quantile(0.95, max by (le) (rate(deadcode_analysis_duration_seconds_bucket[1h])))",
-          "legendFormat": "p95"
+          "expr": "histogram_quantile(0.95, max by (le, level) (rate(deadcode_analysis_duration_seconds_bucket[1h])))",
+          "legendFormat": "nivel {{level}} p95"
         }
       ],
       "fieldConfig": {
@@ -531,7 +531,7 @@
     },
     {
       "type": "row",
-      "title": "Sandboxes y salud de la app",
+      "title": "Nivel 2: tests del repo con coverage.py (si falla, el análisis igual entrega lo de Vulture)",
       "id": 12,
       "collapsed": false,
       "gridPos": {
@@ -543,10 +543,238 @@
       "panels": []
     },
     {
+      "type": "stat",
+      "title": "Nivel 2 que funcionó (total)",
+      "description": "De los análisis con tests, en cuántos se pudieron correr los tests y cruzar con Vulture.",
+      "id": 13,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 0,
+        "y": 25
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "100 * max(deadcode_level2_analyses_total{status=\"finished\"}) / clamp_min(sum(max by (status) (deadcode_level2_analyses_total)), 1e-9)",
+          "legendFormat": "funcionó",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 50
+              },
+              {
+                "color": "green",
+                "value": 80
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Falsos positivos de Vulture",
+      "description": "De los hallazgos que coverage pudo juzgar (funciones y métodos), qué % SÍ se ejecutó en los tests: Vulture decía 'no se usa' y se equivocaba.",
+      "id": 14,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 4,
+        "y": 25
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "100 * max(deadcode_level2_findings_total{verdict=\"falso_positivo\"}) / clamp_min(max(deadcode_level2_findings_total{verdict=\"falso_positivo\"}) + max(deadcode_level2_findings_total{verdict=\"confirmado\"}), 1e-9)",
+          "legendFormat": "falsos positivos",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Nivel 2: fallos por motivo (total)",
+      "description": "Por qué no se pudieron correr los tests (ver LEVEL2_FAILURE_REASONS en analysis_metrics.py). 'tests_no_ejecutables' suele ser un repo que pide una base de datos o claves.",
+      "id": 15,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 25
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "max by (reason) (deadcode_level2_failed_total) > 0",
+          "legendFormat": "{{reason}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              }
+            ]
+          },
+          "color": {
+            "mode": "thresholds"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Cruce Vulture + coverage (hallazgos, total)",
+      "description": "confirmado = Vulture 'no se usa' y los tests nunca lo ejecutaron; falso_positivo = sí se ejecutó; no_aplica = coverage no puede opinar (imports, variables, clases...).",
+      "id": 16,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 25
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "refId": "A",
+          "expr": "max by (verdict) (deadcode_level2_findings_total)",
+          "legendFormat": "{{verdict}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      }
+    },
+    {
+      "type": "row",
+      "title": "Sandboxes y salud de la app",
+      "id": 17,
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 31
+      },
+      "panels": []
+    },
+    {
       "type": "timeseries",
       "title": "Sandboxes vivos",
       "description": "Pods en deadcode-sandboxes. Debe volver a 0 tras cada análisis; si se queda arriba: sandbox huérfano.",
-      "id": 13,
+      "id": 18,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -555,7 +783,7 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 25
+        "y": 32
       },
       "targets": [
         {
@@ -589,7 +817,7 @@
       "type": "stat",
       "title": "¿Se pudo leer cada fuente?",
       "description": "1 = OK; 0 = Postgres o Redis no respondieron a /metrics.",
-      "id": 14,
+      "id": 19,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -598,7 +826,7 @@
         "h": 8,
         "w": 4,
         "x": 8,
-        "y": 25
+        "y": 32
       },
       "targets": [
         {
@@ -651,7 +879,7 @@
       "type": "stat",
       "title": "Reinicios (última hora)",
       "description": "Reinicios de contenedores en el namespace deadcode.",
-      "id": 15,
+      "id": 20,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -660,7 +888,7 @@
         "h": 8,
         "w": 4,
         "x": 12,
-        "y": 25
+        "y": 32
       },
       "targets": [
         {
@@ -718,7 +946,7 @@
       "type": "timeseries",
       "title": "Memoria por pod",
       "description": "Memoria real (working set) de cada pod de la app.",
-      "id": 16,
+      "id": 21,
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -727,7 +955,7 @@
         "h": 8,
         "w": 8,
         "x": 16,
-        "y": 25
+        "y": 32
       },
       "targets": [
         {

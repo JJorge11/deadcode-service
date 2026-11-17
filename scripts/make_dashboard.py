@@ -111,12 +111,42 @@ panel("timeseries", "Análisis terminados y fallidos (por hora)",
        ("sum(max by (reason) (increase(deadcode_analyses_failed_total[1h])))", "fallidos")],
       # 0 decimales: Prometheus extrapola a la hora completa (1,02 en vez de 1).
       x=0, w=12, extra={"fieldConfig": {"defaults": {"decimals": 0, "min": 0}, "overrides": []}})
-panel("timeseries", "Duración de los análisis (p50 y p95, última hora)",
-      "Tiempo total: espera en cola + análisis. Solo los terminados bien. Sin análisis en la hora = sin datos.",
-      [("histogram_quantile(0.50, max by (le) (rate(deadcode_analysis_duration_seconds_bucket[1h])))", "p50"),
-       ("histogram_quantile(0.95, max by (le) (rate(deadcode_analysis_duration_seconds_bucket[1h])))", "p95")],
+panel("timeseries", "Duración de los análisis por nivel (p50 y p95, última hora)",
+      "Tiempo total: espera en cola + análisis. Solo los terminados bien. Separado por nivel: "
+      "uno de nivel 2 (con tests) tarda minutos. Sin análisis en la hora = sin datos.",
+      # "by (le, level)": una curva por nivel (sin level, los mezclaría).
+      [("histogram_quantile(0.50, max by (le, level) (rate(deadcode_analysis_duration_seconds_bucket[1h])))",
+        "nivel {{level}} p50"),
+       ("histogram_quantile(0.95, max by (le, level) (rate(deadcode_analysis_duration_seconds_bucket[1h])))",
+        "nivel {{level}} p95")],
       x=12, w=12, unit="s")
 y += 8
+
+# --- Nivel 2 ----------------------------------------------------------------------
+row("Nivel 2: tests del repo con coverage.py (si falla, el análisis igual entrega lo de Vulture)")
+panel("stat", "Nivel 2 que funcionó (total)",
+      "De los análisis con tests, en cuántos se pudieron correr los tests y cruzar con Vulture.",
+      [('100 * max(deadcode_level2_analyses_total{status="finished"})'
+        " / clamp_min(sum(max by (status) (deadcode_level2_analyses_total)), 1e-9)", "funcionó")],
+      x=0, w=4, h=6, unit="percent", thresholds=[(None, RED), (50, YELLOW), (80, GREEN)])
+panel("stat", "Falsos positivos de Vulture",
+      "De los hallazgos que coverage pudo juzgar (funciones y métodos), qué % SÍ se ejecutó en los tests: "
+      "Vulture decía 'no se usa' y se equivocaba.",
+      [('100 * max(deadcode_level2_findings_total{verdict="falso_positivo"})'
+        ' / clamp_min(max(deadcode_level2_findings_total{verdict="falso_positivo"})'
+        ' + max(deadcode_level2_findings_total{verdict="confirmado"}), 1e-9)', "falsos positivos")],
+      x=4, w=4, h=6, unit="percent")
+panel("bargauge", "Nivel 2: fallos por motivo (total)",
+      "Por qué no se pudieron correr los tests (ver LEVEL2_FAILURE_REASONS en analysis_metrics.py). "
+      "'tests_no_ejecutables' suele ser un repo que pide una base de datos o claves.",
+      [("max by (reason) (deadcode_level2_failed_total) > 0", "{{reason}}")],
+      x=8, w=8, h=6, thresholds=[(None, RED)])
+panel("bargauge", "Cruce Vulture + coverage (hallazgos, total)",
+      "confirmado = Vulture 'no se usa' y los tests nunca lo ejecutaron; falso_positivo = sí se ejecutó; "
+      "no_aplica = coverage no puede opinar (imports, variables, clases...).",
+      [("max by (verdict) (deadcode_level2_findings_total)", "{{verdict}}")],
+      x=16, w=8, h=6)
+y += 6
 
 # --- Sandboxes y salud -------------------------------------------------------
 row("Sandboxes y salud de la app")

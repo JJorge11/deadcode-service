@@ -34,9 +34,10 @@ TIMEOUT_SECONDS = 2
 STATUSES = ("queued", "running", "finished", "failed")
 
 # Cubetas (segundos) para la duración total: espera en cola + análisis.
-# Un análisis normal tarda ~7 s; el máximo del sandbox es 120 s (+30 de
-# arranque).
-DURATION_BUCKETS = (5, 10, 15, 30, 60, 120, 300)
+# Nivel 1: ~7 s (máximo del sandbox 120 s + arranque). Nivel 2: ~2-6 min
+# (3 pods; su trabajo en RQ puede durar hasta 1200 s).
+DURATION_BUCKETS = (5, 10, 15, 30, 60, 120, 300, 600, 1200)
+LEVELS = ("1", "2")
 
 # Mensaje de error -> motivo FIJO. Los mensajes pueden traer detalles
 # variables ("demasiado grande (más de 50 MB...)"); como etiqueta, cada
@@ -54,22 +55,73 @@ FAILURE_REASONS = (
 OTHER_REASON = "otro"
 
 
-def failure_reason(error: str | None) -> str:
+# Lo mismo para el NIVEL 2 (descarga + tests). Ojo: si el nivel 2 falla,
+# el análisis igual queda "finished" (con lo de Vulture), así que estos
+# fallos NO aparecen en deadcode_analyses_failed. Se busca en ORDEN: el
+# primer fragmento que aparezca gana ("tiempo máximo" antes que
+# "instalación", para que un plazo agotado al instalar cuente como plazo).
+LEVEL2_FAILURE_REASONS = (
+    ("no tiene pyproject.toml", "sin_pyproject"),
+    ("URL directa", "url_directa"),
+    ("demasiadas dependencias", "demasiadas_dependencias"),
+    ("pyproject.toml", "pyproject_invalido"),
+    ("Dependencia no válida", "pyproject_invalido"),
+    ("tiempo máximo", "tiempo_agotado"),
+    ("límite de memoria", "memoria_agotada"),
+    ("No se pudieron descargar", "descarga_fallida"),
+    ("pesan más de", "dependencias_muy_grandes"),
+    ("instalar las dependencias", "instalacion_fallida"),
+    ("Faltan las dependencias", "instalacion_fallida"),
+    ("no pudieron ejecutarse", "tests_no_ejecutables"),
+    ("no llegaron a ejecutar", "tests_no_ejecutables"),
+    ("solo está disponible en Kubernetes", "no_disponible"),
+    ("Error inesperado", "inesperado"),
+)
+LEVEL2_VERDICTS = (
+    ("confirmed", "confirmado"),  # Vulture "no se usa" + nunca se ejecutó
+    ("false_positives", "falso_positivo"),  # Vulture "no se usa" + sí se ejecutó
+    ("not_applicable", "no_aplica"),  # coverage no puede opinar (import, variable...)
+)
+
+
+def failure_reason(error: str | None, reasons=FAILURE_REASONS) -> str:
     """Convierte el mensaje de error guardado en un motivo fijo."""
-    for fragment, reason in FAILURE_REASONS:
+    for fragment, reason in reasons:
         if fragment in (error or ""):
             return reason
     return OTHER_REASON
 
 
+def _reason_counts(rows, reasons) -> dict:
+    """Filas (error, n) -> {motivo: total}, con TODOS los motivos (aunque 0)."""
+    counts = {reason: 0 for _, reason in reasons}
+    counts[OTHER_REASON] = 0
+    for row in rows:
+        counts[failure_reason(row["error"], reasons)] += row["n"]
+    return counts
+
+
 # Las columnas le_<n> se arman con los números FIJOS de arriba (no con
 # datos del usuario), así que no hay riesgo de inyección SQL.
+# El nivel no tiene columna propia: un análisis es de nivel 2 si su
+# resultado trae la sección "dynamic" (haya salido bien o no).
 _DURATION_SQL = (
-    "SELECT "
+    "SELECT level, "
     + ", ".join(f"count(*) FILTER (WHERE d <= {b}) AS le_{b}" for b in DURATION_BUCKETS)
     + ", count(*) AS total, coalesce(sum(d), 0) AS total_seconds"
-    " FROM (SELECT extract(epoch FROM finished_at - created_at) AS d"
+    " FROM (SELECT extract(epoch FROM finished_at - created_at) AS d,"
+    "              CASE WHEN result -> 'dynamic' IS NULL THEN '1' ELSE '2' END AS level"
     "       FROM analyses WHERE status = 'finished' AND finished_at IS NOT NULL) AS t"
+    " GROUP BY level"
+)
+
+_LEVEL2_SQL = (
+    "SELECT result -> 'dynamic' ->> 'status' AS status, result -> 'dynamic' ->> 'error' AS error,"
+    " count(*) AS n"
+    + "".join(f", coalesce(sum((result -> 'dynamic' -> 'cross' ->> '{key}')::int), 0) AS {key}"
+              for key, _ in LEVEL2_VERDICTS)
+    + " FROM analyses WHERE status = 'finished' AND result -> 'dynamic' IS NOT NULL"
+    " GROUP BY 1, 2"
 )
 
 
@@ -81,7 +133,8 @@ def _postgres_metrics():
         errors = conn.execute(
             "SELECT error, count(*) AS n FROM analyses WHERE status = 'failed' GROUP BY error"
         ).fetchall()
-        duration = conn.execute(_DURATION_SQL).fetchone()
+        durations = {row["level"]: row for row in conn.execute(_DURATION_SQL)}
+        level2 = conn.execute(_LEVEL2_SQL).fetchall()
         oldest = conn.execute(
             "SELECT coalesce(extract(epoch FROM now() - min(created_at)), 0) AS s"
             " FROM analyses WHERE status IN ('queued', 'running')"
@@ -99,10 +152,7 @@ def _postgres_metrics():
     for status in STATUSES:  # todos, aunque sea 0: los gráficos no quedan con huecos
         analyses.add_metric([status], by_status.get(status, 0))
 
-    failures = {reason: 0 for _, reason in FAILURE_REASONS}
-    failures[OTHER_REASON] = 0
-    for row in errors:
-        failures[failure_reason(row["error"])] += row["n"]
+    failures = _reason_counts(errors, FAILURE_REASONS)
     # Counter: las filas no se borran, así que el total solo sube.
     failed = CounterMetricFamily(
         "deadcode_analyses_failed", "Análisis fallidos, por motivo.", labels=["reason"]
@@ -112,11 +162,17 @@ def _postgres_metrics():
 
     histogram = HistogramMetricFamily(
         "deadcode_analysis_duration_seconds",
-        "Tiempo total (espera en cola + análisis) de los análisis terminados bien.",
-        buckets=[(str(float(b)), duration[f"le_{b}"]) for b in DURATION_BUCKETS]
-        + [("+Inf", duration["total"])],
-        sum_value=float(duration["total_seconds"]),
+        "Tiempo total (espera en cola + análisis) de los análisis terminados bien, por nivel.",
+        labels=["level"],
     )
+    for level in LEVELS:
+        row = durations.get(level)
+        histogram.add_metric(
+            [level],
+            buckets=[(str(float(b)), row[f"le_{b}"] if row else 0) for b in DURATION_BUCKETS]
+            + [("+Inf", row["total"] if row else 0)],
+            sum_value=float(row["total_seconds"]) if row else 0.0,
+        )
 
     pending = GaugeMetricFamily(
         "deadcode_analyses_oldest_pending_seconds",
@@ -129,7 +185,36 @@ def _postgres_metrics():
         "Tamaño de la base de datos (pg_database_size; sin el WAL).",
         value=float(database_bytes),
     )
-    return [analyses, failed, histogram, pending, size]
+    return [analyses, failed, histogram, pending, size, *_level2_metrics(level2)]
+
+
+def _level2_metrics(rows):
+    """Nivel 2: cuántos salieron bien/mal, por qué fallaron y qué dijo el cruce."""
+    results = CounterMetricFamily(
+        "deadcode_level2_analyses",
+        "Análisis de nivel 2 (con tests), por resultado del nivel 2.",
+        labels=["status"],
+    )
+    for status in ("finished", "failed"):
+        results.add_metric([status], sum(r["n"] for r in rows if r["status"] == status))
+
+    failed = CounterMetricFamily(
+        "deadcode_level2_failed",
+        "Fallos del nivel 2, por motivo (el análisis igual entregó lo de Vulture).",
+        labels=["reason"],
+    )
+    reasons = _reason_counts([r for r in rows if r["status"] == "failed"], LEVEL2_FAILURE_REASONS)
+    for reason, count in reasons.items():
+        failed.add_metric([reason], count)
+
+    verdicts = CounterMetricFamily(
+        "deadcode_level2_findings",
+        "Hallazgos de Vulture según el cruce con coverage (suma de todos los análisis de nivel 2).",
+        labels=["verdict"],
+    )
+    for key, verdict in LEVEL2_VERDICTS:
+        verdicts.add_metric([verdict], sum(r[key] for r in rows))
+    return [results, failed, verdicts]
 
 
 def _redis_metrics():

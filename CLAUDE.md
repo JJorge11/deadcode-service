@@ -420,9 +420,37 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   confirmados, 5 falsos positivos); itsdangerous 47 s; este repo: nivel
   2 falla con motivo claro y el nivel 1 llega (7 hallazgos) pero tardó
   258 s (en la 3.2 ~78 s): SIN EXPLICAR, revisar. 0 pods vivos.
-  SIGUIENTE: commit -> despliegue -> prueba por la API real; luego
-  paso 6 (métrica/panel del nivel 2) y mostrar el nivel 2 en el
-  dashboard web pendiente.
+  Commit 2626c86: CI ROJO (test_worker.py, solo Linux, simulaba
+  _run_analysis con la firma vieja) -> arreglo 37dd351 (suite completa
+  en Linux ANTES del push: 281, 0 saltados) -> CI verde -> desplegado.
+  PRUEBA POR LA API REAL (127.0.0.1:8080): "dynamic": "si" -> 422;
+  click nivel 2 -> finished, 6 confirmados / 5 falsos positivos, 86,8%
+  (~142 s); itsdangerous sin dynamic -> nivel 1 igual que siempre, sin
+  sección "dynamic"; este repo nivel 2 -> finished con los 7 hallazgos
+  de Vulture + dynamic {status failed, "no pudieron ejecutarse:
+  KeyError: 'POSTGRES_USER'"} (~172 s). Línea de tiempo de pods: cada
+  pod pasa ~15-20 s en Pending (arranque + portero) -> un nivel 2 paga
+  ~50 s solo en arrancar 3 pods; el pod de tests de este repo, 82 s
+  (instalar 39 wheels). Los 258 s de antes no se repitieron (la prueba
+  desde el PC compartía el clúster con otras cosas); vigilar en Grafana.
+  Paso 6 HECHO (sin commit): métricas del nivel 2 en analysis_metrics.py
+  (leídas de Postgres, como el resto): deadcode_level2_analyses_total
+  {status finished/failed}, deadcode_level2_failed_total{reason} (motivos
+  fijos LEVEL2_FAILURE_REASONS, en ORDEN: "tiempo máximo" gana a
+  "instalación"; un fallo del nivel 2 NO cuenta en
+  deadcode_analyses_failed, el análisis queda "finished") y
+  deadcode_level2_findings_total{verdict confirmado/falso_positivo/
+  no_aplica}. deadcode_analysis_duration_seconds ahora con etiqueta
+  level ("2" = el resultado trae "dynamic") y cubetas hasta 1200 s.
+  Dashboard: fila "Nivel 2" (4 paneles: % que funcionó, % falsos
+  positivos de Vulture, fallos por motivo, veredictos) y duración por
+  nivel (max by (le, level)). test_dashboard: la regex no aceptaba
+  dígitos (deadcode_level2 -> "deadcode_level"): arreglada. SQL probado
+  contra el Postgres REAL del clúster: nivel 1 = 18, nivel 2 = 2 (144 s
+  en <=300, 339 s en <=600); cruce 6/5/126 y 1 fallo KeyError. 298
+  tests en Windows (+4 saltados), 302 en Linux; 3 mutantes detectados
+  (todo nivel 1, motivo olvidado, veredictos cruzados).
+  SIGUIENTE: commit -> verificar en Grafana; luego el dashboard web.
 - Pendiente después: dashboard, README.
 - Pendiente: dashboard simple (el usuario tuvo dificultad usando /docs
   para consultar resultados: copiar ids y leer JSON es incómodo).
