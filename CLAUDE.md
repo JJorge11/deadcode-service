@@ -829,9 +829,15 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
       "confirmado" -> "sin_ejecutar" (dashboard regenerado). La clave JSON
       "confirmed" se MANTIENE (análisis ya guardados). 345 tests Windows
       (+4 saltados), 349 Linux.
-- Pendiente: README (el usuario prefiere hacerlo más adelante, cuando
-  el proyecto esté más completo); migraciones con Alembic cuando cambie
-  la tabla.
+- README.md HECHO (2026-11-20): para visitantes de GitHub (portafolio),
+  en español. Preferencias del usuario: SIN links (ni a páginas ni a
+  archivos de resultados), directo, la INFRAESTRUCTURA primero y
+  destacada (arquitectura mermaid, entornos, CI/CD+GitOps,
+  observabilidad, AWS pieza por pieza, seguridad del sandbox) y después
+  "Análisis y resultados" (qué hace + tabla 168 -> 4 muertos +
+  conclusiones). Luego cómo correrlo, estructura, lecciones, licencia
+  MIT. Actualizarlo cuando cambie algo grande.
+- Pendiente: migraciones con Alembic cuando cambie la tabla.
 
 ## Decisiones
 <!-- Una línea por decisión: qué se eligió y por qué. -->
