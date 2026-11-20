@@ -72,3 +72,38 @@ def test_el_examen_real_carga_y_tiene_ambos_grupos():
     assert {c["split"] for c in cases} == {"practica", "final"}
     assert {c["label"] for c in cases} == set(ev.TRUTH)
     assert len(ev.load_exam(split="final")) + len(ev.load_exam(split="practica")) == len(cases)
+
+
+# --- Revisión humana -----------------------------------------------------------
+
+
+def test_la_revision_manda_sobre_la_etiqueta_del_nivel_2():
+    revision = {"a": {"etiqueta": "vivo"}, "b": {"etiqueta": "muerto"}, "c": {"etiqueta": "dudoso"}}
+    dead = {"label": "muerto_probable"}
+
+    assert ev.truth_of({"id": "a", **dead}, revision) == FP      # "nunca ejecutado" pero vivo
+    assert ev.truth_of({"id": "b", **dead}, revision) == M
+    assert ev.truth_of({"id": "c", **dead}, revision) is None    # no cuenta
+    assert ev.truth_of({"id": "z", **dead}, revision) == M       # sin revisar: nivel 2
+
+
+def test_los_dudosos_no_entran_en_la_nota():
+    cases = [{"id": "a", "label": "muerto_probable"}, {"id": "b", "label": "falso_positivo"}]
+
+    result = ev.run("siempre_fp", ev.siempre_fp, cases, {"a": {"etiqueta": "dudoso"}})
+
+    assert result["notas"]["casos"] == 1 and result["notas"]["dudosos_excluidos"] == 1
+    assert [r["id"] for r in result["respuestas"]] == ["b"]
+
+
+def test_sin_casos_de_una_clase_no_hay_acierto_balanceado():
+    """Un 100% "balanceado" con una sola clase sería engañoso."""
+    assert ev.score([FP, FP], [FP, FP])["acierto_balanceado"] is None
+
+
+def test_la_revision_real_solo_toca_casos_del_examen():
+    ids = {c["id"] for c in ev.load_exam()}
+    revision = ev.load_revision()
+    assert revision and set(revision) <= ids
+    assert {r["etiqueta"] for r in revision.values()} <= set(ev.REVIEWED)
+    assert all(r["motivo"] for r in revision.values())

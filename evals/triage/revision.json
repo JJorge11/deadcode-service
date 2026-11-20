@@ -1,0 +1,373 @@
+{
+ "_leeme": "Revisión HUMANA de los casos 'muerto_probable' (2026-11-20). El corrector (scripts/eval_triage.py) usa esta etiqueta cuando existe: vivo -> la respuesta correcta es 'falso_positivo'; muerto -> 'muerto'; dudoso -> el caso NO cuenta en la nota. Criterio en evals/triage/README.md.",
+ "casos": {
+  "andialbrecht/sqlparse:sqlparse/sql.py:553:is_multiline": {
+   "etiqueta": "dudoso",
+   "motivo": "API pública sin uso interno: depende de los usuarios de la librería (no se puede saber desde el repo)"
+  },
+  "jpadilla/pyjwt:tests/test_jwks_client.py:158:do_GET": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): BaseHTTPRequestHandler (servidor de un test que no corrió)"
+  },
+  "jpadilla/pyjwt:tests/test_jwks_client.py:169:log_message": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): BaseHTTPRequestHandler (servidor de un test que no corrió)"
+  },
+  "more-itertools/more-itertools:tests/test_more.py:44:load_tests": {
+   "etiqueta": "vivo",
+   "motivo": "unittest llama load_tests al cargar el módulo de tests (protocolo)"
+  },
+  "more-itertools/more-itertools:tests/test_recipes.py:24:load_tests": {
+   "etiqueta": "vivo",
+   "motivo": "unittest llama load_tests (protocolo)"
+  },
+  "pallets/click:src/click/_termui_impl.py:407:writelines": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): writelines de objeto tipo archivo"
+  },
+  "pallets/click:src/click/_winconsole.py:127:readinto": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): readinto de io.RawIOBase (solo Windows)"
+  },
+  "pallets/click:src/click/_winconsole.py:208:writelines": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): writelines de objeto tipo archivo"
+  },
+  "pallets/click:src/click/core.py:1680:__subclasscheck__": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): __subclasscheck__ (issubclass)"
+  },
+  "pallets/click:src/click/core.py:1683:__instancecheck__": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): __instancecheck__ (isinstance)"
+  },
+  "pallets/click:src/click/core.py:2192:add_source": {
+   "etiqueta": "dudoso",
+   "motivo": "API pública sin uso interno: depende de los usuarios de la librería (no se puede saber desde el repo)"
+  },
+  "pallets/markupsafe:src/markupsafe/__init__.py:151:__rmul__": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): __rmul__ (n * Markup)"
+  },
+  "pallets/werkzeug:src/werkzeug/datastructures/etag.py:175:is_strong": {
+   "etiqueta": "vivo",
+   "motivo": "API pública OBSOLETA (avisa con DeprecationWarning) pero todavía funciona: viva sin tests"
+  },
+  "pallets/werkzeug:src/werkzeug/datastructures/etag.py:266:contains_raw": {
+   "etiqueta": "vivo",
+   "motivo": "API pública OBSOLETA (avisa con DeprecationWarning) pero todavía funciona: viva sin tests"
+  },
+  "pallets/werkzeug:src/werkzeug/datastructures/etag.py:81:__eq__": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): __eq__ (operador ==)"
+  },
+  "pallets/werkzeug:src/werkzeug/datastructures/headers.py:205:get_all": {
+   "etiqueta": "vivo",
+   "motivo": "Compatibilidad documentada con wsgiref.headers.Headers (API que usan otros)"
+  },
+  "pallets/werkzeug:src/werkzeug/datastructures/headers.py:374:add_header": {
+   "etiqueta": "vivo",
+   "motivo": "Compatibilidad documentada con wsgiref.headers.Headers"
+  },
+  "pallets/werkzeug:src/werkzeug/datastructures/mixins.py:207:add_header": {
+   "etiqueta": "vivo",
+   "motivo": "Parte de la interfaz de Headers (versión inmutable que lanza error)"
+  },
+  "pallets/werkzeug:src/werkzeug/datastructures/range.py:121:range_for_length": {
+   "etiqueta": "vivo",
+   "motivo": "API pública OBSOLETA (avisa con DeprecationWarning) pero todavía funciona: viva sin tests"
+  },
+  "pallets/werkzeug:src/werkzeug/datastructures/range.py:276:to_content_range_header": {
+   "etiqueta": "vivo",
+   "motivo": "API pública OBSOLETA (avisa con DeprecationWarning) pero todavía funciona: viva sin tests"
+  },
+  "pallets/werkzeug:src/werkzeug/datastructures/range.py:405:unset": {
+   "etiqueta": "vivo",
+   "motivo": "API pública OBSOLETA (avisa con DeprecationWarning) pero todavía funciona: viva sin tests"
+  },
+  "pallets/werkzeug:src/werkzeug/debug/console.py:126:get_source_by_code": {
+   "etiqueta": "muerto",
+   "motivo": "Interna, 0 usos en todo el repo (búsqueda por nombre en el commit exacto) y ningún protocolo la llama"
+  },
+  "pallets/werkzeug:src/werkzeug/debug/console.py:189:showsyntaxerror": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): code.InteractiveInterpreter llama showsyntaxerror"
+  },
+  "pallets/werkzeug:src/werkzeug/http.py:344:_dump_csp_header": {
+   "etiqueta": "vivo",
+   "motivo": "Viva: werkzeug/http.py __getattr__ la devuelve con globals()[f'_{name}'] (nombre viejo obsoleto)"
+  },
+  "pallets/werkzeug:src/werkzeug/http.py:704:_parse_accept_header": {
+   "etiqueta": "vivo",
+   "motivo": "Viva: werkzeug/http.py __getattr__ la devuelve con globals()[f'_{name}'] (nombre viejo obsoleto)"
+  },
+  "pallets/werkzeug:src/werkzeug/http.py:749:_parse_cache_control_header": {
+   "etiqueta": "vivo",
+   "motivo": "Viva: werkzeug/http.py __getattr__ la devuelve con globals()[f'_{name}'] (nombre viejo obsoleto)"
+  },
+  "pallets/werkzeug:src/werkzeug/http.py:803:_parse_csp_header": {
+   "etiqueta": "vivo",
+   "motivo": "Viva: werkzeug/http.py __getattr__ la devuelve con globals()[f'_{name}'] (nombre viejo obsoleto)"
+  },
+  "pallets/werkzeug:src/werkzeug/http.py:832:_parse_set_header": {
+   "etiqueta": "vivo",
+   "motivo": "Viva: werkzeug/http.py __getattr__ la devuelve con globals()[f'_{name}'] (nombre viejo obsoleto)"
+  },
+  "pallets/werkzeug:src/werkzeug/http.py:868:_parse_if_range_header": {
+   "etiqueta": "vivo",
+   "motivo": "Viva: werkzeug/http.py __getattr__ la devuelve con globals()[f'_{name}'] (nombre viejo obsoleto)"
+  },
+  "pallets/werkzeug:src/werkzeug/http.py:884:_parse_range_header": {
+   "etiqueta": "vivo",
+   "motivo": "Viva: werkzeug/http.py __getattr__ la devuelve con globals()[f'_{name}'] (nombre viejo obsoleto)"
+  },
+  "pallets/werkzeug:src/werkzeug/http.py:901:_parse_content_range_header": {
+   "etiqueta": "vivo",
+   "motivo": "Viva: werkzeug/http.py __getattr__ la devuelve con globals()[f'_{name}'] (nombre viejo obsoleto)"
+  },
+  "pallets/werkzeug:src/werkzeug/http.py:927:_quote_etag": {
+   "etiqueta": "vivo",
+   "motivo": "Viva: werkzeug/http.py __getattr__ la devuelve con globals()[f'_{name}'] (nombre viejo obsoleto)"
+  },
+  "pallets/werkzeug:src/werkzeug/http.py:939:_unquote_etag": {
+   "etiqueta": "vivo",
+   "motivo": "Viva: werkzeug/http.py __getattr__ la devuelve con globals()[f'_{name}'] (nombre viejo obsoleto)"
+  },
+  "pallets/werkzeug:src/werkzeug/http.py:970:_parse_etags": {
+   "etiqueta": "vivo",
+   "motivo": "Viva: werkzeug/http.py __getattr__ la devuelve con globals()[f'_{name}'] (nombre viejo obsoleto)"
+  },
+  "pallets/werkzeug:src/werkzeug/local.py:236:middleware": {
+   "etiqueta": "dudoso",
+   "motivo": "API pública sin uso interno: depende de los usuarios de la librería (no se puede saber desde el repo)"
+  },
+  "pallets/werkzeug:src/werkzeug/routing/map.py:155:is_endpoint_expecting": {
+   "etiqueta": "dudoso",
+   "motivo": "API pública sin uso interno: depende de los usuarios de la librería (no se puede saber desde el repo)"
+  },
+  "pallets/werkzeug:src/werkzeug/routing/map.py:752:test": {
+   "etiqueta": "dudoso",
+   "motivo": "API pública sin uso interno: depende de los usuarios de la librería (no se puede saber desde el repo)"
+  },
+  "pallets/werkzeug:src/werkzeug/routing/rules.py:557:refresh": {
+   "etiqueta": "dudoso",
+   "motivo": "API pública sin uso interno: depende de los usuarios de la librería (no se puede saber desde el repo)"
+  },
+  "pallets/werkzeug:src/werkzeug/routing/rules.py:87:_find": {
+   "etiqueta": "muerto",
+   "motivo": "Interna, 0 usos en todo el repo (búsqueda por nombre en el commit exacto) y ningún protocolo la llama"
+  },
+  "pallets/werkzeug:src/werkzeug/sansio/http.py:122:__getattr__": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): __getattr__ de módulo (atributos obsoletos)"
+  },
+  "pallets/werkzeug:src/werkzeug/sansio/response.py:618:set_etag": {
+   "etiqueta": "vivo",
+   "motivo": "API pública OBSOLETA (avisa con DeprecationWarning) pero todavía funciona: viva sin tests"
+  },
+  "pallets/werkzeug:src/werkzeug/sansio/response.py:634:get_etag": {
+   "etiqueta": "vivo",
+   "motivo": "API pública OBSOLETA (avisa con DeprecationWarning) pero todavía funciona: viva sin tests"
+  },
+  "pallets/werkzeug:src/werkzeug/serving.py:100:readable": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): readable de objeto tipo archivo"
+  },
+  "pallets/werkzeug:src/werkzeug/serving.py:445:log_request": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): BaseHTTPRequestHandler llama log_request"
+  },
+  "pallets/werkzeug:src/werkzeug/serving.py:477:log_message": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): BaseHTTPRequestHandler llama log_message"
+  },
+  "pallets/werkzeug:src/werkzeug/test.py:1162:head": {
+   "etiqueta": "dudoso",
+   "motivo": "API pública sin uso interno: depende de los usuarios de la librería (no se puede saber desde el repo)"
+  },
+  "pallets/werkzeug:src/werkzeug/test.py:1167:trace": {
+   "etiqueta": "dudoso",
+   "motivo": "API pública sin uso interno: depende de los usuarios de la librería (no se puede saber desde el repo)"
+  },
+  "pallets/werkzeug:src/werkzeug/wrappers/response.py:997:make_conditional": {
+   "etiqueta": "vivo",
+   "motivo": "API pública OBSOLETA (avisa con DeprecationWarning) pero todavía funciona: viva sin tests"
+  },
+  "pallets/werkzeug:src/werkzeug/wsgi.py:509:exhaust": {
+   "etiqueta": "muerto",
+   "motivo": "Interna, 0 usos en todo el repo (búsqueda por nombre en el commit exacto) y ningún protocolo la llama (clase privada _LimitedStream)"
+  },
+  "psf/requests:src/requests/adapters.py:512:get_connection": {
+   "etiqueta": "vivo",
+   "motivo": "API pública OBSOLETA (avisa con DeprecationWarning) pero todavía funciona: viva sin tests"
+  },
+  "psf/requests:src/requests/cookies.py:302:list_domains": {
+   "etiqueta": "dudoso",
+   "motivo": "API pública sin uso interno: depende de los usuarios de la librería (no se puede saber desde el repo)"
+  },
+  "psf/requests:src/requests/cookies.py:310:list_paths": {
+   "etiqueta": "dudoso",
+   "motivo": "API pública sin uso interno: depende de los usuarios de la librería (no se puede saber desde el repo)"
+  },
+  "psf/requests:src/requests/cookies.py:318:multiple_domains": {
+   "etiqueta": "dudoso",
+   "motivo": "API pública sin uso interno: depende de los usuarios de la librería (no se puede saber desde el repo)"
+  },
+  "psf/requests:src/requests/cookies.py:331:get_dict": {
+   "etiqueta": "dudoso",
+   "motivo": "API pública sin uso interno: depende de los usuarios de la librería (no se puede saber desde el repo)"
+  },
+  "psf/requests:src/requests/cookies.py:401:_find": {
+   "etiqueta": "muerto",
+   "motivo": "Interna, 0 usos en todo el repo (búsqueda por nombre en el commit exacto) y ningún protocolo la llama (solo aparece en su propio docstring)"
+  },
+  "psf/requests:src/requests/cookies.py:51:get_type": {
+   "etiqueta": "dudoso",
+   "motivo": "Interfaz de urllib.request.Request para http.cookiejar; los tests de cookies corrieron y no lo usó: quizás solo Python 2"
+  },
+  "psf/requests:src/requests/cookies.py:86:get_header": {
+   "etiqueta": "dudoso",
+   "motivo": "Interfaz de urllib.request.Request para http.cookiejar; quizás solo Python 2"
+  },
+  "psf/requests:src/requests/cookies.py:89:add_header": {
+   "etiqueta": "dudoso",
+   "motivo": "Interfaz para http.cookiejar; su propio docstring dice que no tiene uso legítimo"
+  },
+  "psf/requests:src/requests/models.py:272:deregister_hook": {
+   "etiqueta": "dudoso",
+   "motivo": "API pública sin uso interno: depende de los usuarios de la librería (no se puede saber desde el repo)"
+  },
+  "psf/requests:src/requests/utils.py:149:dict_to_sequence": {
+   "etiqueta": "dudoso",
+   "motivo": "API pública sin uso interno: depende de los usuarios de la librería (no se puede saber desde el repo)"
+  },
+  "psf/requests:src/requests/utils.py:341:from_key_val_list": {
+   "etiqueta": "dudoso",
+   "motivo": "API pública sin uso interno: depende de los usuarios de la librería (no se puede saber desde el repo)"
+  },
+  "psf/requests:src/requests/utils.py:408:parse_list_header": {
+   "etiqueta": "dudoso",
+   "motivo": "API pública sin uso interno: depende de los usuarios de la librería (no se puede saber desde el repo)"
+  },
+  "psf/requests:src/requests/utils.py:500:dict_from_cookiejar": {
+   "etiqueta": "vivo",
+   "motivo": "API pública DOCUMENTADA (docs/api.rst)"
+  },
+  "psf/requests:src/requests/utils.py:633:get_unicode_from_response": {
+   "etiqueta": "vivo",
+   "motivo": "API pública OBSOLETA (avisa con DeprecationWarning) pero todavía funciona: viva sin tests (y documentada en docs/api.rst)"
+  },
+  "pypa/packaging:src/packaging/dependency_groups.py:28:__dir__": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): __dir__ de módulo (dir(módulo), autocompletado)"
+  },
+  "pypa/packaging:src/packaging/direct_url.py:32:__dir__": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): __dir__ de módulo (dir(módulo), autocompletado)"
+  },
+  "pypa/packaging:src/packaging/errors.py:13:__dir__": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): __dir__ de módulo (dir(módulo), autocompletado)"
+  },
+  "pypa/packaging:src/packaging/licenses/__init__.py:49:__dir__": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): __dir__ de módulo (dir(módulo), autocompletado)"
+  },
+  "pypa/packaging:src/packaging/metadata.py:52:__dir__": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): __dir__ de módulo (dir(módulo), autocompletado)"
+  },
+  "pypa/packaging:src/packaging/pylock.py:80:__dir__": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): __dir__ de módulo (dir(módulo), autocompletado)"
+  },
+  "pypa/packaging:src/packaging/ranges.py:122:__dir__": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): __dir__ de módulo (dir(módulo), autocompletado)"
+  },
+  "pypa/packaging:src/packaging/requirements.py:38:__dir__": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): __dir__ de módulo (dir(módulo), autocompletado)"
+  },
+  "pypa/packaging:src/packaging/specifiers.py:58:__dir__": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): __dir__ de módulo (dir(módulo), autocompletado)"
+  },
+  "pypa/packaging:src/packaging/tags.py:65:__dir__": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): __dir__ de módulo (dir(módulo), autocompletado)"
+  },
+  "pypa/packaging:src/packaging/utils.py:29:__dir__": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): __dir__ de módulo (dir(módulo), autocompletado)"
+  },
+  "pypa/packaging:src/packaging/version.py:66:__dir__": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): __dir__ de módulo (dir(módulo), autocompletado)"
+  },
+  "python-attrs/cattrs:src/cattrs/errors.py:36:derive": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): ExceptionGroup.split/subgroup llaman derive"
+  },
+  "tox-dev/filelock:src/filelock/__init__.py:157:__getattr__": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): __getattr__ de módulo (atributos perezosos)"
+  },
+  "tox-dev/filelock:src/filelock/__init__.py:181:__dir__": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): __dir__ de módulo (dir(módulo), autocompletado)"
+  },
+  "tox-dev/filelock:src/filelock/asyncio.py:949:__dir__": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama Python/la librería estándar por protocolo (nadie lo nombra en el código): __dir__ de módulo (dir(módulo), autocompletado)"
+  },
+  "tqdm/tqdm:tests/tests_tqdm.py:96:tell": {
+   "etiqueta": "dudoso",
+   "motivo": "Método tell() de un objeto tipo archivo de un test: protocolo, pero nadie lo usa"
+  },
+  "tqdm/tqdm:tqdm/contrib/__init__.py:43:builtin_iterable": {
+   "etiqueta": "vivo",
+   "motivo": "API pública OBSOLETA (avisa con DeprecationWarning) pero todavía funciona: viva sin tests"
+  },
+  "tqdm/tqdm:tqdm/dask.py:28:_start_state": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama un framework externo por protocolo (callback): dask Callback"
+  },
+  "tqdm/tqdm:tqdm/dask.py:32:_posttask": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama un framework externo por protocolo (callback): dask Callback"
+  },
+  "tqdm/tqdm:tqdm/dask.py:35:_finish": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama un framework externo por protocolo (callback): dask Callback"
+  },
+  "tqdm/tqdm:tqdm/keras.py:113:_implements_train_batch_hooks": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama un framework externo por protocolo (callback): keras pregunta _implements_*_hooks"
+  },
+  "tqdm/tqdm:tqdm/keras.py:117:_implements_test_batch_hooks": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama un framework externo por protocolo (callback): keras pregunta _implements_*_hooks"
+  },
+  "tqdm/tqdm:tqdm/keras.py:121:_implements_predict_batch_hooks": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama un framework externo por protocolo (callback): keras pregunta _implements_*_hooks"
+  },
+  "tqdm/tqdm:tqdm/keras.py:68:on_train_begin": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama un framework externo por protocolo (callback): keras Callback"
+  },
+  "tqdm/tqdm:tqdm/keras.py:74:on_epoch_begin": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama un framework externo por protocolo (callback): keras Callback"
+  },
+  "tqdm/tqdm:tqdm/keras.py:97:on_train_end": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama un framework externo por protocolo (callback): keras Callback"
+  },
+  "tqdm/tqdm:tqdm/notebook.py:88:_repr_pretty_": {
+   "etiqueta": "vivo",
+   "motivo": "Lo llama un framework externo por protocolo (callback): IPython llama _repr_pretty_"
+  }
+ }
+}

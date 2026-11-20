@@ -631,7 +631,7 @@
             "uid": "prometheus"
           },
           "refId": "A",
-          "expr": "100 * max(deadcode_level2_findings_total{verdict=\"falso_positivo\"}) / clamp_min(max(deadcode_level2_findings_total{verdict=\"falso_positivo\"}) + max(deadcode_level2_findings_total{verdict=\"confirmado\"}), 1e-9)",
+          "expr": "100 * max(deadcode_level2_findings_total{verdict=\"falso_positivo\"}) / clamp_min(max(deadcode_level2_findings_total{verdict=\"falso_positivo\"}) + max(deadcode_level2_findings_total{verdict=\"sin_ejecutar\"}), 1e-9)",
           "legendFormat": "falsos positivos",
           "instant": true,
           "range": false
@@ -716,7 +716,7 @@
     {
       "type": "bargauge",
       "title": "Cruce Vulture + coverage (hallazgos, total)",
-      "description": "confirmado = Vulture 'no se usa' y los tests nunca lo ejecutaron; falso_positivo = sí se ejecutó; no_aplica = coverage no puede opinar (imports, variables, clases...).",
+      "description": "sin_ejecutar = Vulture 'no se usa' y los tests nunca lo ejecutaron (casi siempre código vivo sin tests, ver evals/triage); falso_positivo = sí se ejecutó; no_aplica = coverage no puede opinar (imports, variables, clases...).",
       "id": 16,
       "datasource": {
         "type": "prometheus",

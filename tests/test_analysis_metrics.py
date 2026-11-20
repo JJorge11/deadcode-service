@@ -139,7 +139,7 @@ def test_nivel_2_resultados_y_veredictos_del_cruce():
 
     assert _value("deadcode_level2_analyses_total", {"status": "finished"}) == 2
     assert _value("deadcode_level2_analyses_total", {"status": "failed"}) == 1
-    assert _value("deadcode_level2_findings_total", {"verdict": "confirmado"}) == 6
+    assert _value("deadcode_level2_findings_total", {"verdict": "sin_ejecutar"}) == 6
     assert _value("deadcode_level2_findings_total", {"verdict": "falso_positivo"}) == 5
     assert _value("deadcode_level2_findings_total", {"verdict": "no_aplica"}) == 147
     assert _value("deadcode_level2_failed_total", {"reason": "tests_no_ejecutables"}) == 1
@@ -150,7 +150,7 @@ def test_nivel_2_resultados_y_veredictos_del_cruce():
 
 def test_nivel_2_sin_analisis_todo_en_cero():
     assert _value("deadcode_level2_analyses_total", {"status": "finished"}) == 0
-    assert _value("deadcode_level2_findings_total", {"verdict": "confirmado"}) == 0
+    assert _value("deadcode_level2_findings_total", {"verdict": "sin_ejecutar"}) == 0
 
 
 @pytest.mark.parametrize(

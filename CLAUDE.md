@@ -725,7 +725,8 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   para el día a día; 1) Terraform básico (plan/apply/destroy con algo
   gratis); 2) red (VPC); 3) EKS + node pool aparte para sandboxes (PID
   bajo); 4) RDS; 5) ArgoCD + monitoreo + análisis de punta a punta.
-- Etapa 8 (IA con evaluaciones medibles) EN CURSO. Decisión: empezar por
+- Etapa 8 (IA con evaluaciones medibles) EN PAUSA CON CONCLUSIÓN (ver el
+  final de este bloque). Decisión: empezar por
   la "opción 2" = TRIAJE: la IA lee un hallazgo (nombre, tipo, código) y
   dice "muerto" o "falso positivo" (JSON fijo, SIN herramientas: el código
   ajeno es DATO, nunca instrucción; en el peor caso un repo engaña sobre
@@ -772,7 +773,7 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   "descarga de dependencias superó 180 s" (antes casi no pasaba): revisar
   (¿muchas dependencias de test? ¿clúster lento? ¿subir el plazo?).
   pallets/blinker -> "no existe" (se mudó a pallets-eco/blinker).
-  8.2 HECHO (sin commit): scripts/eval_triage.py = corrector REUTILIZABLE
+  8.2 HECHO (commit 1807ef9): scripts/eval_triage.py = corrector REUTILIZABLE
       (motores con interfaz motor(caso) -> {"veredicto": "muerto" |
       "falso_positivo"}; el motor NUNCA ve label ni split; respuesta rara
       = "invalido" = error). Notas: acierto, ACIERTO BALANCEADO (principal:
@@ -794,8 +795,40 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
       red). Si la IA dice "vivo" ahí ACIERTA pero el examen lo cuenta mal.
       El examen chico (53 en final, dominado por packaging y sqlparse) da
       notas que varían mucho entre grupos: mirar ambos y NO afinar con el
-      final. Propuesta pendiente: revisión HUMANA de los "muerto_probable"
-      del final (20) -> etiqueta corregida ("vivo_sin_tests").
+      final.
+  REVISIÓN HUMANA HECHA (sin commit): evals/triage/revision.json con los
+      92 "muerto_probable" (práctica 72 + final 20), cada uno con motivo.
+      Para decidir se buscó el NOMBRE en todo el repo del commit exacto
+      (script en contenedor, solo lee). Criterio (en evals/triage/README):
+      vivo = protocolo de Python/framework, nombre armado (werkzeug
+      http.py: __getattr__ -> globals()[f"_{name}"] hace vivos a 11
+      _parse_*/_quote_etag...), o API obsoleta que aún funciona; muerto =
+      interno, 0 usos, ningún protocolo; dudoso = API pública sin uso
+      interno (fuera de la nota). Resultado: 68 vivos, 20 dudosos, 4
+      MUERTOS (werkzeug rules._find, _ConsoleLoader.get_source_by_code,
+      _LimitedStream.exhaust; requests RequestsCookieJar._find).
+      eval_triage usa la revisión (truth_of: vivo->falso_positivo,
+      dudoso->fuera) y acierto_balanceado = None si falta una clase. 14
+      tests. Notas nuevas: práctica 96 casos (4 muerto / 92 vivo), final 52
+      (0 muerto): siempre_fp ya saca 96-100% -> el examen NO distingue un
+      buen motor de uno trivial.
+  CONCLUSIÓN (decidida con el usuario, 2026-11-20; detalle en
+      evals/triage/README.md -> "Conclusiones", base para el README):
+      el sistema funciona de punta a punta, pero el RESULTADO necesita
+      interpretación: ~97% de lo que marca Vulture en librerías maduras NO
+      es código muerto; "alta" acierta 4-8%; "nunca ejecutado" casi
+      siempre es código vivo sin tests; lo único fiable es "sí se ejecutó
+      = vivo". La herramienta sirve como LISTA DE CANDIDATOS para revisar,
+      no como veredicto. La IA queda en pausa (examen y corrector listos;
+      para retomarla: casos muertos REALES, ej. commits "remove unused").
+  CAMBIO EN LA APP por la conclusión (sin commit): python_cross ya NO
+      sube medium -> high cuando nunca se ejecutó (solo agrega al motivo
+      "...nunca lo ejecutaron (eso no prueba que esté muerto)"); la página
+      dice "sin ejecutar en los tests (no prueba que estén muertos)" en vez
+      de "confirmados"; métrica deadcode_level2_findings_total verdict
+      "confirmado" -> "sin_ejecutar" (dashboard regenerado). La clave JSON
+      "confirmed" se MANTIENE (análisis ya guardados). 345 tests Windows
+      (+4 saltados), 349 Linux.
 - Pendiente: README (el usuario prefiere hacerlo más adelante, cuando
   el proyecto esté más completo); migraciones con Alembic cuando cambie
   la tabla.
@@ -967,9 +1000,11 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
    la propia app como demo.
 3+. Etapa 8: agente de IA que explora la app; métrica = % de cobertura
    alcanzada vs. robot al azar.
-Cruce final: Vulture "no se usa" + coverage "nunca se ejecutó" = muy
-probablemente muerto; Vulture "no se usa" + "sí se ejecutó" = falso
-positivo; "se usa" + "nunca se ejecutó" = vivo pero sin tests.
+Cruce final: Vulture "no se usa" + "sí se ejecutó" = falso positivo
+(fiable). Vulture "no se usa" + coverage "nunca se ejecutó" = SIN
+EJECUTAR, NO "muerto": la etapa 8 mostró que casi siempre es código vivo
+sin tests (solo 4 de 92 estaban muertos). "Se usa" + "nunca se ejecutó"
+= vivo pero sin tests.
 
 ## Aprendizajes de Vulture (2.16)
 - Probado sobre este repo y sobre pallets/itsdangerous: TODOS los
@@ -1092,7 +1127,8 @@ cambiar el proyecto) con itsdangerous, click, requests y este repo.
 - scripts/eks-up.ps1 / eks-down.ps1: encender / apagar TODO en AWS (etapa 7)
 - scripts/build_triage_exam.py: arma el examen de la etapa 8 (evals/triage/)
 - scripts/eval_triage.py: corrige el examen con un motor (sin IA hoy; IA en la 8.3)
-- evals/triage/: examen de triaje (examen.jsonl GENERADO + README.md)
+- evals/triage/: examen de triaje (examen.jsonl GENERADO, revision.json
+  = revisión humana, resultados/, README.md con criterio y CONCLUSIONES)
 - scripts/make_dashboard.py: fuente del dashboard de Grafana (cambiar
   aquí y ejecutar: uv run python scripts/make_dashboard.py --write)
 - .env.example: plantilla de variables (copiar a .env)

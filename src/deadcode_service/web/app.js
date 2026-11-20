@@ -216,7 +216,7 @@ function dynamicSection(result) {
       "div",
       { class: "stats" },
       stat(`${dynamic.coverage_percent}%`, "cobertura de los tests"),
-      stat(String(cross.confirmed), "confirmados (nunca se ejecutaron)", "p-high"),
+      stat(String(cross.confirmed), "sin ejecutar en los tests (no prueba que estén muertos)", "p-medium"),
       stat(String(cross.false_positives), "falsos positivos de Vulture (sí se ejecutaron)", "p-low"),
       stat(String(cross.not_applicable), "no aplica (imports, variables…)")
     ),

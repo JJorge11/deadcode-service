@@ -78,7 +78,7 @@ LEVEL2_FAILURE_REASONS = (
     ("Error inesperado", "inesperado"),
 )
 LEVEL2_VERDICTS = (
-    ("confirmed", "confirmado"),  # Vulture "no se usa" + nunca se ejecutó
+    ("confirmed", "sin_ejecutar"),  # Vulture "no se usa" + nunca se ejecutó (NO prueba que esté muerto)
     ("false_positives", "falso_positivo"),  # Vulture "no se usa" + sí se ejecutó
     ("not_applicable", "no_aplica"),  # coverage no puede opinar (import, variable...)
 )

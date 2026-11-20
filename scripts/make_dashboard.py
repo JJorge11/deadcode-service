@@ -134,7 +134,7 @@ panel("stat", "Falsos positivos de Vulture",
       "Vulture decía 'no se usa' y se equivocaba.",
       [('100 * max(deadcode_level2_findings_total{verdict="falso_positivo"})'
         ' / clamp_min(max(deadcode_level2_findings_total{verdict="falso_positivo"})'
-        ' + max(deadcode_level2_findings_total{verdict="confirmado"}), 1e-9)', "falsos positivos")],
+        ' + max(deadcode_level2_findings_total{verdict="sin_ejecutar"}), 1e-9)', "falsos positivos")],
       x=4, w=4, h=6, unit="percent")
 panel("bargauge", "Nivel 2: fallos por motivo (total)",
       "Por qué no se pudieron correr los tests (ver LEVEL2_FAILURE_REASONS en analysis_metrics.py). "
@@ -142,7 +142,8 @@ panel("bargauge", "Nivel 2: fallos por motivo (total)",
       [("max by (reason) (deadcode_level2_failed_total) > 0", "{{reason}}")],
       x=8, w=8, h=6, thresholds=[(None, RED)])
 panel("bargauge", "Cruce Vulture + coverage (hallazgos, total)",
-      "confirmado = Vulture 'no se usa' y los tests nunca lo ejecutaron; falso_positivo = sí se ejecutó; "
+      "sin_ejecutar = Vulture 'no se usa' y los tests nunca lo ejecutaron (casi siempre código vivo sin tests, "
+      "ver evals/triage); falso_positivo = sí se ejecutó; "
       "no_aplica = coverage no puede opinar (imports, variables, clases...).",
       [("max by (verdict) (deadcode_level2_findings_total)", "{{verdict}}")],
       x=16, w=8, h=6)

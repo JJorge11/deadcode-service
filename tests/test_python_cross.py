@@ -84,15 +84,17 @@ def test_falso_positivo_baja_a_low_aunque_vulture_dijera_high():
     assert result["reason"] == FALSE_POSITIVE_REASON
 
 
-def test_confirmado_medium_sube_a_high():
+def test_sin_ejecutar_no_sube_la_prioridad():
+    """"Nunca ejecutado" casi siempre es código vivo sin tests (etapa 8):
+    no se promete más de lo que se sabe."""
     [result] = cross([finding("list_domains", priority="medium")], cov(missing=[11, 12]))
 
     assert result["executed"] is False
-    assert (result["static_priority"], result["priority"]) == ("medium", "high")
+    assert (result["static_priority"], result["priority"]) == ("medium", "medium")
     assert result["reason"] == "Público sin usos" + CONFIRMED_SUFFIX
 
 
-def test_confirmado_high_sigue_high_y_low_sigue_low():
+def test_sin_ejecutar_high_y_low_no_cambian():
     """Como _find de requests (high). Un "low" (ej. parámetro, tests) no
     sube: que no se ejecute no cambia por qué era poco importante."""
     high, low = cross(
@@ -106,7 +108,8 @@ def test_confirmado_high_sigue_high_y_low_sigue_low():
 def test_motivo_sin_punto_doble():
     item = {**finding("f"), "reason": "Privado sin usos."}
     [result] = cross([item], cov(missing=[11]))
-    assert result["reason"] == "Privado sin usos. Además, los tests del repo nunca lo ejecutaron."
+    assert result["reason"] == "Privado sin usos" + CONFIRMED_SUFFIX
+    assert ".." not in result["reason"]
 
 
 def test_no_aplica_queda_igual():

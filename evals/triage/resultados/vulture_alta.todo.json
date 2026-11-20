@@ -1,0 +1,756 @@
+{
+ "motor": "vulture_alta",
+ "notas": {
+  "casos": 148,
+  "acierto": 0.6824324324324325,
+  "acierto_balanceado": 0.59375,
+  "detecta_muertos": 0.5,
+  "detecta_falsos_positivos": 0.6875,
+  "confianza_en_muerto": 0.0425531914893617,
+  "invalidas": 0,
+  "dudosos_excluidos": 20
+ },
+ "segundos": 0.0,
+ "respuestas": [
+  {
+   "id": "andialbrecht/sqlparse:sqlparse/filters/aligned_indent.py:41:_process_statement",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "andialbrecht/sqlparse:sqlparse/filters/aligned_indent.py:49:_process_parenthesis",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "andialbrecht/sqlparse:sqlparse/filters/aligned_indent.py:61:_process_identifierlist",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "andialbrecht/sqlparse:sqlparse/filters/aligned_indent.py:68:_process_case",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "andialbrecht/sqlparse:sqlparse/filters/others.py:100:_stripws_identifierlist",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "andialbrecht/sqlparse:sqlparse/filters/others.py:114:_stripws_parenthesis",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "andialbrecht/sqlparse:sqlparse/filters/reindent.py:145:_process_where",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "andialbrecht/sqlparse:sqlparse/filters/reindent.py:154:_process_parenthesis",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "andialbrecht/sqlparse:sqlparse/filters/reindent.py:166:_process_function",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "andialbrecht/sqlparse:sqlparse/filters/reindent.py:170:_process_identifierlist",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "andialbrecht/sqlparse:sqlparse/filters/reindent.py:233:_process_case",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "andialbrecht/sqlparse:sqlparse/filters/reindent.py:256:_process_values",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "jpadilla/pyjwt:tests/test_api_jws.py:909:default",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "jpadilla/pyjwt:tests/test_api_jwt.py:862:default",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "jpadilla/pyjwt:tests/test_jwks_client.py:158:do_GET",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "jpadilla/pyjwt:tests/test_jwks_client.py:169:log_message",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "more-itertools/more-itertools:tests/test_more.py:44:load_tests",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "more-itertools/more-itertools:tests/test_recipes.py:24:load_tests",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/click:src/click/__init__.py:76:__getattr__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/click:src/click/_termui_impl.py:407:writelines",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/click:src/click/_textwrap.py:20:_wrap_chunks",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "pallets/click:src/click/_winconsole.py:127:readinto",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/click:src/click/_winconsole.py:208:writelines",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/click:src/click/core.py:1680:__subclasscheck__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/click:src/click/core.py:1683:__instancecheck__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/click:src/click/core.py:3997:__getattr__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/click:src/click/parser.py:503:__getattr__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/click:src/click/utils.py:653:__getattr__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/markupsafe:src/markupsafe/__init__.py:142:__radd__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/markupsafe:src/markupsafe/__init__.py:151:__rmul__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/markupsafe:src/markupsafe/__init__.py:379:__str__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/markupsafe:src/markupsafe/__init__.py:385:__int__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/markupsafe:src/markupsafe/__init__.py:388:__float__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/_reloader.py:285:on_any_event",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/datastructures/__init__.py:33:__getattr__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/datastructures/accept.py:299:accept_html",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/datastructures/accept.py:308:accept_xhtml",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/datastructures/accept.py:325:accept_json",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/datastructures/accept.py:411:__getattr__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/datastructures/cache_control.py:390:__getattr__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/datastructures/etag.py:175:is_strong",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/datastructures/etag.py:266:contains_raw",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/datastructures/etag.py:426:__getattr__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/datastructures/etag.py:81:__eq__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/datastructures/headers.py:205:get_all",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/datastructures/headers.py:374:add_header",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/datastructures/mixins.py:104:fromkeys",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/datastructures/mixins.py:207:add_header",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/datastructures/mixins.py:332:__getattr__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/datastructures/range.py:121:range_for_length",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/datastructures/range.py:276:to_content_range_header",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/datastructures/range.py:405:unset",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/datastructures/structures.py:620:fromkeys",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/datastructures/structures.py:891:__getattr__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/debug/console.py:126:get_source_by_code",
+   "esperado": "muerto",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/debug/console.py:176:runcode",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/debug/console.py:189:showsyntaxerror",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/formparser.py:502:__getattr__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/http.py:1571:__getattr__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/http.py:344:_dump_csp_header",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/http.py:704:_parse_accept_header",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/http.py:749:_parse_cache_control_header",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/http.py:803:_parse_csp_header",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/http.py:832:_parse_set_header",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/http.py:868:_parse_if_range_header",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/http.py:884:_parse_range_header",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/http.py:901:_parse_content_range_header",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/http.py:927:_quote_etag",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/http.py:939:_unquote_etag",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/http.py:970:_parse_etags",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/routing/rules.py:597:_encode_query_vars",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/routing/rules.py:87:_find",
+   "esperado": "muerto",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/sansio/http.py:122:__getattr__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/sansio/request.py:409:pragma",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/sansio/request.py:441:accept_charsets",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/sansio/response.py:608:_set_etag",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/sansio/response.py:618:set_etag",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/sansio/response.py:634:get_etag",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/sansio/response.py:720:_set_www_authenticate",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/sansio/utils.py:238:__getattr__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/serving.py:100:readable",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/serving.py:445:log_request",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/serving.py:477:log_message",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/user_agent.py:65:__getattr__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/utils.py:715:__getattr__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/wrappers/request.py:738:remote_user",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/wrappers/request.py:755:is_multithread",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/wrappers/request.py:773:is_multiprocess",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/wrappers/request.py:791:is_run_once",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/wrappers/response.py:997:make_conditional",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/wsgi.py:509:exhaust",
+   "esperado": "muerto",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/wsgi.py:605:readable",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pallets/werkzeug:src/werkzeug/wsgi.py:611:__getattr__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "psf/requests:src/requests/adapters.py:512:get_connection",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "psf/requests:src/requests/cookies.py:101:unverifiable",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "psf/requests:src/requests/cookies.py:105:origin_req_host",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "psf/requests:src/requests/cookies.py:401:_find",
+   "esperado": "muerto",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "psf/requests:src/requests/cookies.py:60:get_full_url",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "psf/requests:src/requests/cookies.py:83:has_header",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "psf/requests:src/requests/cookies.py:95:add_unredirected_header",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "psf/requests:src/requests/models.py:883:is_permanent_redirect",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "psf/requests:src/requests/utils.py:328:atomic_open",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "psf/requests:src/requests/utils.py:500:dict_from_cookiejar",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "psf/requests:src/requests/utils.py:633:get_unicode_from_response",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pypa/packaging:src/packaging/dependency_groups.py:28:__dir__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pypa/packaging:src/packaging/direct_url.py:32:__dir__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pypa/packaging:src/packaging/errors.py:13:__dir__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pypa/packaging:src/packaging/licenses/__init__.py:49:__dir__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pypa/packaging:src/packaging/markers.py:45:__dir__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pypa/packaging:src/packaging/metadata.py:336:header_store_parse",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pypa/packaging:src/packaging/metadata.py:52:__dir__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pypa/packaging:src/packaging/metadata.py:625:_process_metadata_version",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "pypa/packaging:src/packaging/metadata.py:631:_process_name",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "pypa/packaging:src/packaging/metadata.py:644:_process_version",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "pypa/packaging:src/packaging/metadata.py:654:_process_summary",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "pypa/packaging:src/packaging/metadata.py:660:_process_description_content_type",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "pypa/packaging:src/packaging/metadata.py:706:_process_dynamic",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "pypa/packaging:src/packaging/metadata.py:719:_process_provides_extra",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "pypa/packaging:src/packaging/metadata.py:734:_process_requires_python",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "pypa/packaging:src/packaging/metadata.py:742:_process_requires_dist",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "pypa/packaging:src/packaging/metadata.py:757:_process_license_expression",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "pypa/packaging:src/packaging/metadata.py:765:_process_license_files",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "pypa/packaging:src/packaging/pylock.py:80:__dir__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pypa/packaging:src/packaging/ranges.py:122:__dir__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pypa/packaging:src/packaging/requirements.py:38:__dir__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pypa/packaging:src/packaging/specifiers.py:58:__dir__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pypa/packaging:src/packaging/tags.py:65:__dir__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pypa/packaging:src/packaging/utils.py:29:__dir__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pypa/packaging:src/packaging/version.py:66:__dir__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "pytest-dev/pluggy:src/pluggy/__init__.py:32:__getattr__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "python-attrs/attrs:src/attr/__init__.py:119:__dir__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "python-attrs/attrs:src/attrs/__init__.py:75:__dir__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "python-attrs/cattrs:src/cattrs/errors.py:36:derive",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "tox-dev/filelock:src/filelock/__init__.py:157:__getattr__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "tox-dev/filelock:src/filelock/__init__.py:181:__dir__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "tox-dev/filelock:src/filelock/asyncio.py:949:__dir__",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "tqdm/tqdm:tqdm/contrib/__init__.py:43:builtin_iterable",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "tqdm/tqdm:tqdm/dask.py:28:_start_state",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "tqdm/tqdm:tqdm/dask.py:32:_posttask",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "tqdm/tqdm:tqdm/dask.py:35:_finish",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "tqdm/tqdm:tqdm/keras.py:113:_implements_train_batch_hooks",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "tqdm/tqdm:tqdm/keras.py:117:_implements_test_batch_hooks",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "tqdm/tqdm:tqdm/keras.py:121:_implements_predict_batch_hooks",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "tqdm/tqdm:tqdm/keras.py:68:on_train_begin",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "tqdm/tqdm:tqdm/keras.py:74:on_epoch_begin",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "tqdm/tqdm:tqdm/keras.py:97:on_train_end",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  },
+  {
+   "id": "tqdm/tqdm:tqdm/notebook.py:88:_repr_pretty_",
+   "esperado": "falso_positivo",
+   "veredicto": "muerto"
+  },
+  {
+   "id": "tqdm/tqdm:tqdm/std.py:123:create_th_lock",
+   "esperado": "falso_positivo",
+   "veredicto": "falso_positivo"
+  }
+ ]
+}

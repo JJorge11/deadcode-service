@@ -1,24 +1,25 @@
 {
  "motor": "vulture_alta",
  "notas": {
-  "casos": 115,
-  "acierto": 0.5130434782608696,
-  "acierto_balanceado": 0.5923772609819121,
-  "detecta_muertos": 0.2777777777777778,
-  "detecta_falsos_positivos": 0.9069767441860465,
-  "confianza_en_muerto": 0.8333333333333334,
-  "invalidas": 0
+  "casos": 96,
+  "acierto": 0.75,
+  "acierto_balanceado": 0.6304347826086957,
+  "detecta_muertos": 0.5,
+  "detecta_falsos_positivos": 0.7608695652173914,
+  "confianza_en_muerto": 0.08333333333333333,
+  "invalidas": 0,
+  "dudosos_excluidos": 19
  },
  "segundos": 0.0,
  "respuestas": [
   {
    "id": "more-itertools/more-itertools:tests/test_more.py:44:load_tests",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
    "id": "more-itertools/more-itertools:tests/test_recipes.py:24:load_tests",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
@@ -28,7 +29,7 @@
   },
   {
    "id": "pallets/click:src/click/_termui_impl.py:407:writelines",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
@@ -38,27 +39,22 @@
   },
   {
    "id": "pallets/click:src/click/_winconsole.py:127:readinto",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
    "id": "pallets/click:src/click/_winconsole.py:208:writelines",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
    "id": "pallets/click:src/click/core.py:1680:__subclasscheck__",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
    "id": "pallets/click:src/click/core.py:1683:__instancecheck__",
-   "esperado": "muerto",
-   "veredicto": "falso_positivo"
-  },
-  {
-   "id": "pallets/click:src/click/core.py:2192:add_source",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
@@ -113,12 +109,12 @@
   },
   {
    "id": "pallets/werkzeug:src/werkzeug/datastructures/etag.py:175:is_strong",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
    "id": "pallets/werkzeug:src/werkzeug/datastructures/etag.py:266:contains_raw",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
@@ -128,17 +124,17 @@
   },
   {
    "id": "pallets/werkzeug:src/werkzeug/datastructures/etag.py:81:__eq__",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
    "id": "pallets/werkzeug:src/werkzeug/datastructures/headers.py:205:get_all",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
    "id": "pallets/werkzeug:src/werkzeug/datastructures/headers.py:374:add_header",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
@@ -148,7 +144,7 @@
   },
   {
    "id": "pallets/werkzeug:src/werkzeug/datastructures/mixins.py:207:add_header",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
@@ -158,17 +154,17 @@
   },
   {
    "id": "pallets/werkzeug:src/werkzeug/datastructures/range.py:121:range_for_length",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
    "id": "pallets/werkzeug:src/werkzeug/datastructures/range.py:276:to_content_range_header",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
    "id": "pallets/werkzeug:src/werkzeug/datastructures/range.py:405:unset",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
@@ -193,7 +189,7 @@
   },
   {
    "id": "pallets/werkzeug:src/werkzeug/debug/console.py:189:showsyntaxerror",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
@@ -208,78 +204,58 @@
   },
   {
    "id": "pallets/werkzeug:src/werkzeug/http.py:344:_dump_csp_header",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
    "id": "pallets/werkzeug:src/werkzeug/http.py:704:_parse_accept_header",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
    "id": "pallets/werkzeug:src/werkzeug/http.py:749:_parse_cache_control_header",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
    "id": "pallets/werkzeug:src/werkzeug/http.py:803:_parse_csp_header",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
    "id": "pallets/werkzeug:src/werkzeug/http.py:832:_parse_set_header",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
    "id": "pallets/werkzeug:src/werkzeug/http.py:868:_parse_if_range_header",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
    "id": "pallets/werkzeug:src/werkzeug/http.py:884:_parse_range_header",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
    "id": "pallets/werkzeug:src/werkzeug/http.py:901:_parse_content_range_header",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
    "id": "pallets/werkzeug:src/werkzeug/http.py:927:_quote_etag",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
    "id": "pallets/werkzeug:src/werkzeug/http.py:939:_unquote_etag",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
    "id": "pallets/werkzeug:src/werkzeug/http.py:970:_parse_etags",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
-  },
-  {
-   "id": "pallets/werkzeug:src/werkzeug/local.py:236:middleware",
-   "esperado": "muerto",
-   "veredicto": "falso_positivo"
-  },
-  {
-   "id": "pallets/werkzeug:src/werkzeug/routing/map.py:155:is_endpoint_expecting",
-   "esperado": "muerto",
-   "veredicto": "falso_positivo"
-  },
-  {
-   "id": "pallets/werkzeug:src/werkzeug/routing/map.py:752:test",
-   "esperado": "muerto",
-   "veredicto": "falso_positivo"
-  },
-  {
-   "id": "pallets/werkzeug:src/werkzeug/routing/rules.py:557:refresh",
-   "esperado": "muerto",
-   "veredicto": "falso_positivo"
   },
   {
    "id": "pallets/werkzeug:src/werkzeug/routing/rules.py:597:_encode_query_vars",
@@ -293,7 +269,7 @@
   },
   {
    "id": "pallets/werkzeug:src/werkzeug/sansio/http.py:122:__getattr__",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
@@ -313,12 +289,12 @@
   },
   {
    "id": "pallets/werkzeug:src/werkzeug/sansio/response.py:618:set_etag",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
    "id": "pallets/werkzeug:src/werkzeug/sansio/response.py:634:get_etag",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
@@ -333,27 +309,17 @@
   },
   {
    "id": "pallets/werkzeug:src/werkzeug/serving.py:100:readable",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
    "id": "pallets/werkzeug:src/werkzeug/serving.py:445:log_request",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
    "id": "pallets/werkzeug:src/werkzeug/serving.py:477:log_message",
-   "esperado": "muerto",
-   "veredicto": "falso_positivo"
-  },
-  {
-   "id": "pallets/werkzeug:src/werkzeug/test.py:1162:head",
-   "esperado": "muerto",
-   "veredicto": "falso_positivo"
-  },
-  {
-   "id": "pallets/werkzeug:src/werkzeug/test.py:1167:trace",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
@@ -388,7 +354,7 @@
   },
   {
    "id": "pallets/werkzeug:src/werkzeug/wrappers/response.py:997:make_conditional",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
@@ -408,7 +374,7 @@
   },
   {
    "id": "psf/requests:src/requests/adapters.py:512:get_connection",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
@@ -422,34 +388,9 @@
    "veredicto": "falso_positivo"
   },
   {
-   "id": "psf/requests:src/requests/cookies.py:302:list_domains",
-   "esperado": "muerto",
-   "veredicto": "falso_positivo"
-  },
-  {
-   "id": "psf/requests:src/requests/cookies.py:310:list_paths",
-   "esperado": "muerto",
-   "veredicto": "falso_positivo"
-  },
-  {
-   "id": "psf/requests:src/requests/cookies.py:318:multiple_domains",
-   "esperado": "muerto",
-   "veredicto": "falso_positivo"
-  },
-  {
-   "id": "psf/requests:src/requests/cookies.py:331:get_dict",
-   "esperado": "muerto",
-   "veredicto": "falso_positivo"
-  },
-  {
    "id": "psf/requests:src/requests/cookies.py:401:_find",
    "esperado": "muerto",
    "veredicto": "muerto"
-  },
-  {
-   "id": "psf/requests:src/requests/cookies.py:51:get_type",
-   "esperado": "muerto",
-   "veredicto": "falso_positivo"
   },
   {
    "id": "psf/requests:src/requests/cookies.py:60:get_full_url",
@@ -462,23 +403,8 @@
    "veredicto": "falso_positivo"
   },
   {
-   "id": "psf/requests:src/requests/cookies.py:86:get_header",
-   "esperado": "muerto",
-   "veredicto": "falso_positivo"
-  },
-  {
-   "id": "psf/requests:src/requests/cookies.py:89:add_header",
-   "esperado": "muerto",
-   "veredicto": "falso_positivo"
-  },
-  {
    "id": "psf/requests:src/requests/cookies.py:95:add_unredirected_header",
    "esperado": "falso_positivo",
-   "veredicto": "falso_positivo"
-  },
-  {
-   "id": "psf/requests:src/requests/models.py:272:deregister_hook",
-   "esperado": "muerto",
    "veredicto": "falso_positivo"
   },
   {
@@ -487,33 +413,18 @@
    "veredicto": "falso_positivo"
   },
   {
-   "id": "psf/requests:src/requests/utils.py:149:dict_to_sequence",
-   "esperado": "muerto",
-   "veredicto": "falso_positivo"
-  },
-  {
    "id": "psf/requests:src/requests/utils.py:328:atomic_open",
    "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
-   "id": "psf/requests:src/requests/utils.py:341:from_key_val_list",
-   "esperado": "muerto",
-   "veredicto": "falso_positivo"
-  },
-  {
-   "id": "psf/requests:src/requests/utils.py:408:parse_list_header",
-   "esperado": "muerto",
-   "veredicto": "falso_positivo"
-  },
-  {
    "id": "psf/requests:src/requests/utils.py:500:dict_from_cookiejar",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
    "id": "psf/requests:src/requests/utils.py:633:get_unicode_from_response",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
@@ -522,63 +433,58 @@
    "veredicto": "falso_positivo"
   },
   {
-   "id": "tqdm/tqdm:tests/tests_tqdm.py:96:tell",
-   "esperado": "muerto",
-   "veredicto": "falso_positivo"
-  },
-  {
    "id": "tqdm/tqdm:tqdm/contrib/__init__.py:43:builtin_iterable",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
    "id": "tqdm/tqdm:tqdm/dask.py:28:_start_state",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
    "id": "tqdm/tqdm:tqdm/dask.py:32:_posttask",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
    "id": "tqdm/tqdm:tqdm/dask.py:35:_finish",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
    "id": "tqdm/tqdm:tqdm/keras.py:113:_implements_train_batch_hooks",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
    "id": "tqdm/tqdm:tqdm/keras.py:117:_implements_test_batch_hooks",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
    "id": "tqdm/tqdm:tqdm/keras.py:121:_implements_predict_batch_hooks",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
    "id": "tqdm/tqdm:tqdm/keras.py:68:on_train_begin",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
    "id": "tqdm/tqdm:tqdm/keras.py:74:on_epoch_begin",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
    "id": "tqdm/tqdm:tqdm/keras.py:97:on_train_end",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "falso_positivo"
   },
   {
    "id": "tqdm/tqdm:tqdm/notebook.py:88:_repr_pretty_",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {

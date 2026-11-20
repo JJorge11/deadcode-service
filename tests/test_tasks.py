@@ -131,8 +131,8 @@ def _coverage(executed, missing):
     }
 
 
-def test_nivel_2_cruza_y_confirma(nivel2):
-    # "olvidada" (líneas 5-6): su cuerpo (6) nunca se ejecutó -> confirmado.
+def test_nivel_2_cruza_y_marca_sin_ejecutar(nivel2):
+    # "olvidada" (líneas 5-6): su cuerpo (6) nunca se ejecutó -> "sin ejecutar".
     nivel2["coverage"] = _coverage(executed=[1, 2, 5, 9], missing=[6])
     analysis_id = crear_analisis()
 
@@ -141,8 +141,10 @@ def test_nivel_2_cruza_y_confirma(nivel2):
     result = db.get_analysis(analysis_id)["result"]
     [finding] = result["dead_code"]
     assert (finding["name"], finding["executed"]) == ("olvidada", False)
-    assert (finding["static_priority"], finding["priority"]) == ("medium", "high")
-    assert result["summary"]["by_priority"]["high"] == 1  # recalculado
+    # "Sin ejecutar" NO es "muerto" (etapa 8): la prioridad no sube.
+    assert (finding["static_priority"], finding["priority"]) == ("medium", "medium")
+    assert "nunca lo ejecutaron" in finding["reason"]
+    assert result["summary"]["by_priority"]["medium"] == 1  # recalculado
     assert result["dynamic"] == {
         "status": "finished",
         "coverage_percent": 80.0,

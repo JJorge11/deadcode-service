@@ -36,6 +36,56 @@ partir de los análisis de nivel 2: no editar a mano.
   `final`, medida al final (si se mira `final` para ajustar, deja de ser
   un examen).
 
+## Revisión humana (`revision.json`)
+
+Los 92 casos `muerto_probable` se revisaron a mano (2026-11-20), con
+búsqueda del nombre en TODO el repo del commit exacto (en contenedor).
+Criterio:
+
+- `vivo`: lo llama Python solo (`__dir__`, `__eq__`, `writelines`...),
+  un framework (callbacks de keras/dask, `load_tests` de unittest,
+  `_repr_pretty_` de IPython), se alcanza por nombre armado
+  (`globals()[f"_{name}"]`) o es API pública OBSOLETA que sigue
+  funcionando (avisa con `DeprecationWarning`).
+- `muerto`: interno, 0 usos en todo el repo y ningún protocolo lo llama.
+- `dudoso`: API pública sin uso interno (depende de los usuarios de la
+  librería; no se puede saber desde el repo) -> NO entra en la nota.
+
+`scripts/eval_triage.py` usa la etiqueta revisada cuando existe.
+
+## Conclusiones (2026-11-20)
+
+| | Casos |
+|---|---|
+| Hallazgos con veredicto del nivel 2 | 168 (13 repos) |
+| Los tests SÍ los ejecutaron (vivos seguros) | 76 |
+| Los tests nunca los ejecutaron | 92 |
+| ... de esos, vivos según la revisión | 68 |
+| ... dudosos (API pública) | 20 |
+| ... **muertos de verdad** | **4** |
+
+1. En librerías maduras, **~97% de lo que Vulture marca NO es código
+   muerto** (144 vivos vs. 4 muertos entre los casos que se pudieron
+   juzgar). Causas: protocolos de Python, frameworks, nombres armados en
+   texto (`getattr`) y API pública.
+2. La prioridad "alta" de Vulture acertó solo un **4-8%** de las veces.
+   Sus reglas tampoco se trasladan entre repos (en el grupo final, los 23
+   "alta" eran falsos positivos de sqlparse, que llama sus métodos con
+   `getattr(self, "_process_" + nombre)`).
+3. El nivel 2 **no confirma** muertes: "los tests nunca lo ejecutaron"
+   casi siempre es código vivo sin tests. Por eso la app ya no sube la
+   prioridad ni dice "confirmado" (dice "sin ejecutar en los tests").
+4. Lo que SÍ es fiable: si los tests ejecutaron algo, está vivo (un
+   falso positivo de Vulture demostrado).
+5. Conclusión práctica: la herramienta sirve como **lista de candidatos
+   para revisar a mano**, no como veredicto. Medirlo así (examen +
+   revisión humana) fue lo que lo reveló.
+6. La capa de IA (triaje con Ollama/Groq) quedó en pausa: con 144 vivos
+   y 4 muertos, responder "vivo" a todo ya saca 97% y el examen no
+   distingue un buen motor de uno trivial. Para retomarla hacen falta
+   casos muertos REALES (idea: commits "remove unused ..." en la
+   historia de repos públicos). El examen y el corrector quedan listos.
+
 ## Regenerar (Git Bash, con el clúster kind arriba)
 
 El script LEE código de repos ajenos (no lo ejecuta), pero igual corre en

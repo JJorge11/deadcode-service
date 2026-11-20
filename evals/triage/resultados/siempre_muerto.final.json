@@ -1,13 +1,14 @@
 {
  "motor": "siempre_muerto",
  "notas": {
-  "casos": 53,
-  "acierto": 0.37735849056603776,
-  "acierto_balanceado": 0.5,
-  "detecta_muertos": 1.0,
+  "casos": 52,
+  "acierto": 0.0,
+  "acierto_balanceado": null,
+  "detecta_muertos": null,
   "detecta_falsos_positivos": 0.0,
-  "confianza_en_muerto": 0.37735849056603776,
-  "invalidas": 0
+  "confianza_en_muerto": 0.0,
+  "invalidas": 0,
+  "dudosos_excluidos": 1
  },
  "segundos": 0.0,
  "respuestas": [
@@ -72,11 +73,6 @@
    "veredicto": "muerto"
   },
   {
-   "id": "andialbrecht/sqlparse:sqlparse/sql.py:553:is_multiline",
-   "esperado": "muerto",
-   "veredicto": "muerto"
-  },
-  {
    "id": "jpadilla/pyjwt:tests/test_api_jws.py:909:default",
    "esperado": "falso_positivo",
    "veredicto": "muerto"
@@ -88,12 +84,12 @@
   },
   {
    "id": "jpadilla/pyjwt:tests/test_jwks_client.py:158:do_GET",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
    "id": "jpadilla/pyjwt:tests/test_jwks_client.py:169:log_message",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
@@ -103,7 +99,7 @@
   },
   {
    "id": "pallets/markupsafe:src/markupsafe/__init__.py:151:__rmul__",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
@@ -123,22 +119,22 @@
   },
   {
    "id": "pypa/packaging:src/packaging/dependency_groups.py:28:__dir__",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
    "id": "pypa/packaging:src/packaging/direct_url.py:32:__dir__",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
    "id": "pypa/packaging:src/packaging/errors.py:13:__dir__",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
    "id": "pypa/packaging:src/packaging/licenses/__init__.py:49:__dir__",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
@@ -153,7 +149,7 @@
   },
   {
    "id": "pypa/packaging:src/packaging/metadata.py:52:__dir__",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
@@ -213,37 +209,37 @@
   },
   {
    "id": "pypa/packaging:src/packaging/pylock.py:80:__dir__",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
    "id": "pypa/packaging:src/packaging/ranges.py:122:__dir__",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
    "id": "pypa/packaging:src/packaging/requirements.py:38:__dir__",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
    "id": "pypa/packaging:src/packaging/specifiers.py:58:__dir__",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
    "id": "pypa/packaging:src/packaging/tags.py:65:__dir__",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
    "id": "pypa/packaging:src/packaging/utils.py:29:__dir__",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
    "id": "pypa/packaging:src/packaging/version.py:66:__dir__",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
@@ -258,22 +254,22 @@
   },
   {
    "id": "python-attrs/cattrs:src/cattrs/errors.py:36:derive",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
    "id": "tox-dev/filelock:src/filelock/__init__.py:157:__getattr__",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
    "id": "tox-dev/filelock:src/filelock/__init__.py:181:__dir__",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   },
   {
    "id": "tox-dev/filelock:src/filelock/asyncio.py:949:__dir__",
-   "esperado": "muerto",
+   "esperado": "falso_positivo",
    "veredicto": "muerto"
   }
  ]

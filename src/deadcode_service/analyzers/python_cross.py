@@ -5,7 +5,10 @@
     función se ejecutó / nunca se ejecutó".
 
 Veredicto por hallazgo (campo "executed"):
-  False -> nunca se ejecutó: CONFIRMA a Vulture (medium sube a high).
+  False -> nunca se ejecutó: la prioridad NO cambia, solo se avisa en el
+           motivo. "Sin ejecutar" NO es "muerto": el examen de la etapa 8
+           (evals/triage) mostró que casi siempre es código VIVO sin
+           tests (lo llama Python solo, un framework, o es API pública).
   True  -> sí se ejecutó: se usa por un camino que Vulture no ve
            (decorador, librería estándar, getattr...): falso positivo
            probable -> baja a low.
@@ -27,7 +30,9 @@ FALSE_POSITIVE_REASON = (
     "Se ejecutó durante los tests del repo: se usa por un camino que Vulture "
     "no ve (decorador, librería estándar, getattr...). Probable falso positivo."
 )
-CONFIRMED_SUFFIX = ". Además, los tests del repo nunca lo ejecutaron."
+# Antes subía "medium" a "high" ("confirmado"): la revisión humana del
+# examen mostró que solo 4 de 92 "nunca ejecutados" estaban muertos.
+CONFIRMED_SUFFIX = ". Además, los tests del repo nunca lo ejecutaron (eso no prueba que esté muerto)."
 
 
 def execution_of(finding: dict, files: dict) -> bool | None:
@@ -62,15 +67,15 @@ def cross(findings: list[dict], coverage: dict) -> list[dict]:
             new["priority"] = "low"
             new["reason"] = FALSE_POSITIVE_REASON
         elif executed is False:
-            if finding["priority"] == "medium":
-                new["priority"] = "high"
             new["reason"] = finding["reason"].rstrip(".") + CONFIRMED_SUFFIX
         result.append(new)
     return sort_findings(result)
 
 
 def summarize_cross(findings: list[dict]) -> dict:
-    """Cuántos confirmó, cuántos descartó y sobre cuántos no pudo opinar."""
+    """Cuántos nunca se ejecutaron, cuántos sí (falsos positivos) y sobre
+    cuántos no pudo opinar. La clave "confirmed" se mantiene por los
+    análisis ya guardados, pero significa "sin ejecutar", no "muerto"."""
     values = [f.get("executed") for f in findings]
     return {
         "confirmed": values.count(False),
