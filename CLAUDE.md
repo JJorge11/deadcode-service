@@ -493,7 +493,7 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   hallazgos en el código (si no hay en el código: en todo el repo, sin
   "solo código"; sin hallazgos: "todas"). Antes arrancaba en "alta" con
   0. Verificado: markupsafe -> baja (6), este repo -> media (2).
-- Etapa 7 (nube, AWS + Terraform) EN CURSO. Decisiones (2026-11-17):
+- Etapa 7 (nube, AWS + Terraform) COMPLETA (partes 0-5). Decisiones (2026-11-17):
   cuenta AWS NUEVA (no existía); presupuesto MÁXIMO 10 USD/mes (alerta
   por correo); EKS creado y DESTRUIDO en cada sesión (terraform
   destroy al terminar; ~0,25 USD/h encendido: control EKS 0,10 + 2
@@ -685,8 +685,8 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
       lint + template de la versión EKS y comprobaciones (sin StatefulSet,
       RDS con require, nodePool, contraseña fuera de la URL). Compose sin
       cambios (su contraseña es alfanumérica).
-  5.2 HECHO (sin commit; tras el push hay que hacer kubectl apply -f
-      argocd/monitoring.yaml en kind): los valores de kube-prometheus-stack
+  5.2 HECHO (commit 716cfa6 + kubectl apply -f argocd/monitoring.yaml en
+      kind: Synced Healthy, 0 pods reiniciados, el PVC sigue): los valores de kube-prometheus-stack
       salieron de argocd/monitoring.yaml a monitoring/values.yaml
       (compartido) + monitoring/values-eks.yaml (storageSpec: null ->
       Prometheus SIN disco en EKS: se destruye cada sesión y un PVC crea un
@@ -697,9 +697,30 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
       con helm template (chart 93.3.0 descargado): kind antes vs ahora = 0
       líneas distintas; EKS vs kind = solo las 8 líneas del disco. CI (job
       helm): genera ambos y exige disco en kind y NINGUNO en EKS.
-  5.3 PENDIENTE: scripts/eks-up.ps1 y eks-down.ps1 (terraform, kubeconfig,
-      ArgoCD, Secrets desde Secrets Manager, Applications) + prueba de
-      punta a punta (nivel 1 y 2, sandboxes en el nodo sandbox).
+  5.3 HECHO (sin commit): scripts/eks-up.ps1 y eks-down.ps1 (UTF-8 CON
+      BOM: sin él PowerShell 5.1 lee mal las tildes; -Yes = sin preguntar).
+      up: sesión AWS -> terraform apply -> kubeconfig aparte -> ArgoCD
+      v3.6.1 -> Secrets (postgres-credentials desde Secrets Manager con
+      archivos temporales borrados; grafana-admin aleatoria) -> monitoreo
+      PRIMERO y espera las CRDs ServiceMonitor/PrometheusRule (si no, el
+      sync de la app falla) -> app -> espera Synced Healthy. Todo
+      repetible (dry-run | apply). down: terraform destroy + 8 contadores
+      (EKS, RDS, NAT, IPs, EC2, EBS, balanceadores, snapshots) + borra el
+      kubeconfig; falla si algo no es 0. Nuevo output db_name.
+      EN VIVO: eks-up 13,7 min (de cero a Synced Healthy, a la primera).
+      /health ok (postgres = RDS), /config level2 true. itsdangerous nivel
+      1: 21 hallazgos en 13 s. click nivel 2: 137 hallazgos, 86,8%, 6
+      confirmados / 5 falsos positivos (IGUAL que en kind) en 46 s (kind:
+      82-142 s). Los 4 pods de sandbox (2 análisis, descarga, tests) en el
+      nodo "sandbox" (eventos Scheduled); 0 vivos al terminar. API, worker
+      y Redis en nodos "general". Monitoreo: 25/25 targets up, 2 pods de
+      API, source_up postgres/redis = 1, 5 reglas Deadcode*, solo Watchdog
+      activa, 0 PVCs. eks-down 8 min -> 32 destruidos, todo en 0.
+      Costo de la sesión completa (~45 min encendido): ~0,35 USD.
+      Pendientes opcionales de la nube: modo "strict" de NetworkPolicy;
+      sslmode verify-full con el certificado de RDS; destino de
+      notificaciones de Alertmanager; IRSA/Pod Identity si algún pod
+      necesita permisos de AWS.
   Plan: 0) cuenta + MFA + presupuesto con alertas, usuario sin root
   para el día a día; 1) Terraform básico (plan/apply/destroy con algo
   gratis); 2) red (VPC); 3) EKS + node pool aparte para sandboxes (PID
@@ -997,6 +1018,7 @@ cambiar el proyecto) con itsdangerous, click, requests y este repo.
 - charts/deadcode-service/alerts/deadcode.rules.yaml: reglas de alerta
   (formato Prometheus); tests/alerts/deadcode.rules.test.yaml: sus tests
   con promtool (comando en la cabecera del archivo)
+- scripts/eks-up.ps1 / eks-down.ps1: encender / apagar TODO en AWS (etapa 7)
 - scripts/make_dashboard.py: fuente del dashboard de Grafana (cambiar
   aquí y ejecutar: uv run python scripts/make_dashboard.py --write)
 - .env.example: plantilla de variables (copiar a .env)
@@ -1090,6 +1112,10 @@ cambiar el proyecto) con itsdangerous, click, requests y este repo.
     pasarlos a gh (--jq '...'): usar Git Bash para esos comandos.
 - AWS / Terraform (PowerShell; renovar sesión: aws login --profile deadcode):
   / ¿quién soy?: aws sts get-caller-identity --profile deadcode
+  / TODO DE UNA VEZ (recomendado): .\scripts\eks-up.ps1 (~14 min; app
+    lista) -> usar -> .\scripts\eks-down.ps1 (~8 min; verifica que todo
+    quede en 0). Ver la app: $env:KUBECONFIG = "$HOME\.kube\eks-deadcode";
+    kubectl port-forward -n deadcode svc/api 8090:8000 -> http://127.0.0.1:8090/
   / plataforma, primera vez en un PC (en infra/aws/platform):
     $bucket = terraform '-chdir=../bootstrap' output -raw state_bucket
     terraform init "-backend-config=bucket=$bucket"

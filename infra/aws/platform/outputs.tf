@@ -33,6 +33,11 @@ output "db_endpoint" {
   value       = aws_db_instance.main.address
 }
 
+output "db_name" {
+  description = "Nombre de la base de datos de la app"
+  value       = aws_db_instance.main.db_name
+}
+
 output "db_secret_arn" {
   description = "Secret de Secrets Manager con usuario y contraseña de Postgres"
   value       = aws_db_instance.main.master_user_secret[0].secret_arn
