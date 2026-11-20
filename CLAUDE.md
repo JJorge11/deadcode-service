@@ -744,7 +744,7 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   primera prueba con IA (Ollama + Groq); 8.4 mejorar prompt (solo con
   "practica"; "final" solo para la nota); 8.5 (opcional) integrar en la app
   (casilla "con IA", código cortado DENTRO del sandbox, caché, límite).
-  8.1 HECHO (sin commit): scripts/build_triage_exam.py -> evals/triage/
+  8.1 HECHO (commit 8dd0e5f): scripts/build_triage_exam.py -> evals/triage/
   examen.jsonl (168 casos, 171 KB) + evals/triage/README.md (formato,
   reglas, comando). Caso = hallazgo function/method/property con
   veredicto del cruce: falso_positivo (tests lo EJECUTARON: etiqueta
@@ -772,7 +772,30 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   "descarga de dependencias superó 180 s" (antes casi no pasaba): revisar
   (¿muchas dependencias de test? ¿clúster lento? ¿subir el plazo?).
   pallets/blinker -> "no existe" (se mudó a pallets-eco/blinker).
-  Adelanto de la 8.2: "high" de Vulture acierta solo 20 de 47 (43%).
+  8.2 HECHO (sin commit): scripts/eval_triage.py = corrector REUTILIZABLE
+      (motores con interfaz motor(caso) -> {"veredicto": "muerto" |
+      "falso_positivo"}; el motor NUNCA ve label ni split; respuesta rara
+      = "invalido" = error). Notas: acierto, ACIERTO BALANCEADO (principal:
+      responder siempre lo mismo = 50%), detecta_muertos,
+      detecta_falsos_positivos, confianza_en_muerto (un "muerto" errado
+      puede llevar a BORRAR código vivo), invalidas. --split practica (por
+      defecto) / final / todo; --guardar -> evals/triage/resultados/
+      <motor>.<split>.json. 10 tests (tests/test_eval_triage.py).
+      LÍNEAS BASE (balanceado práctica / final): siempre_muerto 50/50,
+      siempre_fp 50/50, vulture_alta 59/15 (!), vulture_alta_media 65/19.
+      En el FINAL las reglas de Vulture son PEORES que el azar: los 23
+      "high" eran falsos positivos (sqlparse llama sus métodos _process_X
+      armando el nombre con getattr -> Vulture no ve el uso; justo lo que
+      una IA que lee el código podría ver) y los muertos son "low".
+      ⚠️ RUIDO EN LAS ETIQUETAS: "nunca ejecutado" != "muerto". En el final:
+      __dir__ de módulo (packaging x4) y __rmul__ (markupsafe) los llama
+      Python solo (vivos sin tests); do_GET/log_message de pyjwt son de un
+      servidor de prueba (tests que no corrieron, probablemente por falta de
+      red). Si la IA dice "vivo" ahí ACIERTA pero el examen lo cuenta mal.
+      El examen chico (53 en final, dominado por packaging y sqlparse) da
+      notas que varían mucho entre grupos: mirar ambos y NO afinar con el
+      final. Propuesta pendiente: revisión HUMANA de los "muerto_probable"
+      del final (20) -> etiqueta corregida ("vivo_sin_tests").
 - Pendiente: README (el usuario prefiere hacerlo más adelante, cuando
   el proyecto esté más completo); migraciones con Alembic cuando cambie
   la tabla.
@@ -1068,6 +1091,7 @@ cambiar el proyecto) con itsdangerous, click, requests y este repo.
   con promtool (comando en la cabecera del archivo)
 - scripts/eks-up.ps1 / eks-down.ps1: encender / apagar TODO en AWS (etapa 7)
 - scripts/build_triage_exam.py: arma el examen de la etapa 8 (evals/triage/)
+- scripts/eval_triage.py: corrige el examen con un motor (sin IA hoy; IA en la 8.3)
 - evals/triage/: examen de triaje (examen.jsonl GENERADO + README.md)
 - scripts/make_dashboard.py: fuente del dashboard de Grafana (cambiar
   aquí y ejecutar: uv run python scripts/make_dashboard.py --write)
