@@ -725,6 +725,54 @@ Los análisis corren dentro de contenedores aislados, sin acceso a secretos.
   para el día a día; 1) Terraform básico (plan/apply/destroy con algo
   gratis); 2) red (VPC); 3) EKS + node pool aparte para sandboxes (PID
   bajo); 4) RDS; 5) ArgoCD + monitoreo + análisis de punta a punta.
+- Etapa 8 (IA con evaluaciones medibles) EN CURSO. Decisión: empezar por
+  la "opción 2" = TRIAJE: la IA lee un hallazgo (nombre, tipo, código) y
+  dice "muerto" o "falso positivo" (JSON fijo, SIN herramientas: el código
+  ajeno es DATO, nunca instrucción; en el peor caso un repo engaña sobre
+  SÍ MISMO). Opciones 1 (agente que explora la app) y 3 (explicar) más
+  adelante. Motores: primero GRATIS y comparables con el MISMO examen:
+  Ollama local (PC: 16 GB RAM, GTX 1050 4 GB -> modelos de ~3-4B como
+  qwen2.5-coder:3b / qwen3-coder:4b; lento; apagar kind/Compose para
+  liberar RAM) y Groq (nivel gratis, ~30 pedidos/min, no entrena con los
+  datos). Investigado (2026-11-19): GitHub Models CERRADO desde jul-2026;
+  Gemini gratis SÍ entrena con los datos y recortó límites (dic-2025);
+  OpenRouter :free = 50 pedidos/día; Cerebras ~1M tokens. Claude (Opus 5.5
+  4/20 USD por millón, Haiku 5.5 0,10/0,50) solo si el usuario quiere,
+  para ver si pagar sube la nota. Clasificador INTERCAMBIABLE (misma
+  función, distintos motores).
+  Plan: 8.1 examen; 8.2 nota sin IA (línea base: Vulture solo); 8.3
+  primera prueba con IA (Ollama + Groq); 8.4 mejorar prompt (solo con
+  "practica"; "final" solo para la nota); 8.5 (opcional) integrar en la app
+  (casilla "con IA", código cortado DENTRO del sandbox, caché, límite).
+  8.1 HECHO (sin commit): scripts/build_triage_exam.py -> evals/triage/
+  examen.jsonl (168 casos, 171 KB) + evals/triage/README.md (formato,
+  reglas, comando). Caso = hallazgo function/method/property con
+  veredicto del cruce: falso_positivo (tests lo EJECUTARON: etiqueta
+  segura) o muerto_probable (nunca ejecutado: probable). Campos: repo,
+  commit EXACTO, archivo, líneas, nombre, tipo, clase, static_priority,
+  confidence, visibility, location, code (decoradores + cuerpo, máx. 60
+  líneas numeradas), label, split. NO van (no soplar la respuesta):
+  priority/reason post-cruce, message, executed. Split POR REPO
+  (determinista por sha256, ~30% final): final 53 (33 fp / 20 muerto:
+  sqlparse, pyjwt, markupsafe, packaging, attrs, cattrs, filelock),
+  practica 115 (43 / 72: more-itertools, click, werkzeug 66, requests,
+  pluggy, tqdm). El exportador LEE código ajeno (no lo ejecuta) y corre
+  en contenedor (nobody, solo lectura, cap-drop ALL); descarga por commit
+  con fetcher._http_get (solo GitHub, límites). GET /analyses trae solo 20
+  (a propósito): los viejos se pasan con --id (ids sacados de Postgres).
+  12 tests (tests/test_triage_exam.py); mutantes "todo al final" y
+  "motivo post-cruce en el caso" detectados.
+  Datos: 18 repos nuevos analizados en nivel 2 en kind (~42 min, de a
+  uno: 1 worker, cuota 2Gi, poca RAM libre). Con casos: werkzeug 66,
+  packaging 25, requests 22, sqlparse 13, tqdm 13, click 11, markupsafe 5,
+  pyjwt 4, filelock 3, attrs 2, more-itertools 2, pluggy 1, cattrs 1. Sin
+  casos: humanize, marshmallow (nivel 2 OK, 0 funciones con veredicto);
+  rich ("los tests no llegaron a ejecutar código del repo").
+  ⚠️ PENDIENTE (app): jinja, flask, structlog y prettytable fallaron por
+  "descarga de dependencias superó 180 s" (antes casi no pasaba): revisar
+  (¿muchas dependencias de test? ¿clúster lento? ¿subir el plazo?).
+  pallets/blinker -> "no existe" (se mudó a pallets-eco/blinker).
+  Adelanto de la 8.2: "high" de Vulture acierta solo 20 de 47 (43%).
 - Pendiente: README (el usuario prefiere hacerlo más adelante, cuando
   el proyecto esté más completo); migraciones con Alembic cuando cambie
   la tabla.
@@ -1019,6 +1067,8 @@ cambiar el proyecto) con itsdangerous, click, requests y este repo.
   (formato Prometheus); tests/alerts/deadcode.rules.test.yaml: sus tests
   con promtool (comando en la cabecera del archivo)
 - scripts/eks-up.ps1 / eks-down.ps1: encender / apagar TODO en AWS (etapa 7)
+- scripts/build_triage_exam.py: arma el examen de la etapa 8 (evals/triage/)
+- evals/triage/: examen de triaje (examen.jsonl GENERADO + README.md)
 - scripts/make_dashboard.py: fuente del dashboard de Grafana (cambiar
   aquí y ejecutar: uv run python scripts/make_dashboard.py --write)
 - .env.example: plantilla de variables (copiar a .env)
